@@ -1,4 +1,4 @@
-# leboncoin-alerts
+# leboncoin-alerte
 
 Surveille des recherches Leboncoin avec un vrai navigateur (comportement humain) et envoie
 des alertes sur les canaux de ton choix : Discord, email, Telegram, webhook générique.
@@ -8,6 +8,18 @@ Chaque recherche a ses propres filtres, et si un référentiel de prix marché e
 entre le prix de l'annonce et le marché (embed vert dès 10 % sous le marché).
 
 Conçu pour être **donné à un agent LLM** : lis [`AGENTS.md`](AGENTS.md) si tu es un agent.
+
+## Avertissement
+
+Projet personnel et éducatif, **non affilié à Leboncoin ni approuvé par celui-ci**.
+« Leboncoin » est une marque de ses propriétaires respectifs.
+
+- Tu restes seul responsable du respect des conditions d'utilisation de Leboncoin
+  et de la législation applicable.
+- Garde une fréquence d'interrogation basse (≥ 10 min par recherche).
+- Pas de revente ni de redistribution des données collectées.
+- Le projet ralentit et s'arrête s'il détecte un blocage (DataDome) : n'insiste pas,
+  arrête la surveillance.
 
 ## Principe
 
@@ -19,7 +31,7 @@ Conçu pour être **donné à un agent LLM** : lis [`AGENTS.md`](AGENTS.md) si t
 ## Démarrage rapide (uv — recommandé)
 
 ```bash
-git clone https://github.com/superyaya44/leboncoin-alerts.git && cd leboncoin-alerts
+git clone https://github.com/superyaya44/leboncoin-alerte.git && cd leboncoin-alerte
 uv sync                      # installe les deps dans .venv
 uv run playwright install chromium   # télécharge le navigateur
 uv run lbc-alerte init               # wizard : config manuelle, import d'un bundle, ou exemple
@@ -287,6 +299,9 @@ devenue fiable.
 
 ### Service systemd (VPS)
 
+Crée d'abord un utilisateur dédié sans privilèges (`sudo useradd -r -m -s /usr/sbin/nologin lbc`)
+et installe le projet dans `/opt/leboncoin-alerte` (adapte `User=` et les chemins à ton installation).
+
 ```bash
 sudo tee /etc/systemd/system/lbc-alerte.service > /dev/null << 'EOF'
 [Unit]
@@ -296,9 +311,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=ubuntu
-WorkingDirectory=/home/ubuntu/projects/leboncoin-alerte
-ExecStart=/home/ubuntu/projects/leboncoin-alerte/.venv/bin/lbc-alerte daemon
+User=lbc
+WorkingDirectory=/opt/leboncoin-alerte
+ExecStart=/opt/leboncoin-alerte/.venv/bin/lbc-alerte daemon
 Restart=always
 RestartSec=30
 
@@ -355,8 +370,6 @@ src/leboncoin_alerte/
 └── notify/       # discord / email / telegram / webhook générique
 ```
 
-## Avertissement
+## Licence
 
-Usage personnel. Respecte les CGU de Leboncoin : intervalles raisonnables (≥ 10 min par
-recherche), pas de revente des données, pas de spam. Le projet ralentit et s'arrête s'il
-détecte un blocage (DataDome) plutôt que d'insister.
+Distribué sous licence MIT — voir [`LICENSE`](LICENSE).
