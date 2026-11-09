@@ -1,0 +1,104 @@
+# leboncoin-alerte — configuration
+# Copie ce fichier en config.toml puis adapte. Toute valeur peut référencer
+# l'environnement : "${MA_VAR}" est remplacée par la valeur de l'env (voir .env.example).
+
+[general]
+# Minutes entre deux cycles de vérification (>= 10 recommandé, respect des serveurs).
+interval_minutes = 15
+# Dossier des données : profil navigateur, base SQLite, logs.
+data_dir = "./data"
+# OPTIONNEL — réutiliser un Chromium déjà ouvert via CDP (recommandé sur le VPS :
+# profil déjà validé DataDome, vrai UA). Vide = le bot lance son propre navigateur.
+# cdp_url = "http://127.0.0.1:9222"
+# Validation humaine : true = les annonces retenues vont dans pending_offers
+# (voir scripts/send_pending.py) au lieu d'être envoyées directement. Le rapport
+# quotidien les liste, tu valides avec --send <id>. false = envoi direct.
+# hold_notifications = false
+
+# ─── Recherches ────────────────────────────────────────────────────────────────
+# Une recherche = une URL Leboncoin. Construis ta recherche sur le site avec tous
+# les filtres voulus, puis copie l'URL. Les filtres ci-dessous s'appliquent EN PLUS,
+# côté bot, après extraction.
+
+[[search]]
+name = "exemple-ps5-nantes"
+url = "https://www.leboncoin.fr/recherche?category=15&text=ps5&locations=Nantes_44000&price=min-300"
+# Rejeter les annonces au-dessus de ce prix (entier, euros, optionnel).
+max_price = 300
+# Ne garder que les titres contenant au moins un de ces mots (optionnel).
+keywords_include = ["ps5"]
+# Rejeter les titres contenant un de ces mots (optionnel).
+keywords_exclude = ["manette", "jeu"]
+# Regex appliquées au TEXTE COMPLET (titre + description + attributs),
+# TOUTES doivent matcher (AND), casse ignorée (optionnel).
+# Exemple "GPU >= RTX 3060" :
+# regex_all = ['rtx[ -]?(30[6-9]\\d?|40[5-9]\\d?|50\\d{2,3})']
+# RAM minimale en Go, évaluée sur le texte complet — parseur numérique,
+# "512 Go SSD" ne compte pas comme de la RAM (optionnel).
+# min_ram_gb = 32
+# VRAM minimale en Go (annonces GPU) : "32 Go GDDR7", "Zotac 3080 Ti 12Gb",
+# ou défaut du modèle connu. Modèle ambigu sans précision (5060 Ti = 8 OU
+# 16 Go) : rejeté, SAUF vram_ask = true → question vendeur en attente (optionnel).
+# min_vram_gb = 16
+# vram_ask = true
+# Capacité minimale d'UNE barrette RAM (Go) : "32 Go (2x16)" = 16/barrette →
+# rejeté avec min 32 ; "64 Go (2x32)" → accepté. Exception : kit 4×16 (total
+# 64) accepté même si la barrette fait 16 Go (optionnel).
+# min_stick_gb = 32
+# Marché alimenté par cette recherche : "gpu" ou "ram" — toutes les annonces
+# (même rejetées) nourrissent les références de prix auto-apprises (optionnel).
+# market_kind = "gpu"
+# Stockage TOTAL minimal en Go, 1 To = 1024 Go ("SSD 500 Go + 500 Go" = 1000) (optionnel).
+# min_disk_gb = 1000
+# CPU minimum : pas d'échelle numérique, on passe par regex_all. Exemples :
+#   i7/i9 ou Ryzen 7/9 : regex_all = ['i[79][\s-]?\d{4}|ryzen\s?[79]\s?\d{3,4}']
+#
+# ── Autres critères (tous optionnels, ignorés si vides — voir README) ──
+# min_price = 500            # prix minimum (€)
+# regex_any = ['i7', 'ryzen 7']   # au moins UNE regex doit matcher (OU)
+# text_keywords_include = ['ddr5']  # mots-clés sur le texte complet (description incluse)
+# text_keywords_exclude = ['revend']
+# cities_include = ["lyon", "sète"]  # la ville doit contenir un de ces mots
+# cities_exclude = ["béziers"]
+# max_age_hours = 48         # ignorer les annonces de plus de 48 h
+# computer_type = "Fixe"     # attribut LBC : "Fixe" exclut les portables
+# seller_type = "particulier"  # ou "pro"
+# condition_include = ["neuf", "comme neuf"]  # état de l'annonce
+# min_year = 2023            # année du matériel (attribut Leboncoin)
+# shippable_only = false     # true = uniquement les annonces expédiables
+# pages = 3                  # pages de résultats par cycle (défaut 10, 35 annonces/page ;
+#                            # 2-3 suffisent pour une recherche triée par date)
+
+# Duplique le bloc [[search]] pour surveiller plusieurs recherches.
+# Chaque recherche a SES propres filtres et sa propre dédupliqution.
+
+# ─── Notifications ─────────────────────────────────────────────────────────────
+# Active uniquement les canaux que tu utilises (enabled = true).
+
+[notify.discord]
+enabled = true
+# Webhook Discord : Paramètres du serveur > Intégrations > Webhooks > Nouveau webhook.
+webhook_url = "${DISCORD_WEBHOOK_URL}"
+
+[notify.email]
+enabled = false
+smtp_host = "smtp.gmail.com"
+smtp_port = 587
+username = "moi@gmail.com"
+# Mot de passe d'application (Gmail : mot de passe d'app, pas le mot de passe normal).
+password = "${SMTP_PASSWORD}"
+from = "moi@gmail.com"
+to = ["moi@gmail.com"]
+
+[notify.telegram]
+enabled = false
+bot_token = "${TELEGRAM_BOT_TOKEN}"
+chat_id = "123456789"
+
+[notify.webhook]
+# Webhook générique : POST JSON {search, title, price, url, image_url, first_seen_at}.
+enabled = false
+url = "https://exemple.fr/hook"
+# En-têtes additionnels optionnels (ex. auth).
+[notify.webhook.headers]
+# X-Auth = "secret"

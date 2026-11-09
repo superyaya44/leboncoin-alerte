@@ -1,0 +1,15 @@
+# Données locales (profil navigateur, SQLite) — jamais commité
+data/
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+# Config locale avec secrets
+config.toml
+.env
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store

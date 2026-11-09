@@ -1,0 +1,13 @@
+services:
+  lbc-alerte:
+    build: .
+    container_name: leboncoin-alerte
+    restart: unless-stopped
+    volumes:
+      - ./config.toml:/app/config.toml:ro
+      - ./data:/app/data  # profil navigateur + SQLite persistés
+    environment:
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - WEBHOOK_URL=${WEBHOOK_URL:-}
