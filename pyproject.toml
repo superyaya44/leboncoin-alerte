@@ -3,6 +3,8 @@ name = "leboncoin-alerte"
 version = "0.1.0"
 description = "Alertes Leboncoin via navigateur humain-like + notifications webhook (Discord, email, Telegram, générique)."
 requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = [
     "playwright>=1.49",
     "httpx>=0.27",
