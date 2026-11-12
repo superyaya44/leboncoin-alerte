@@ -7,7 +7,8 @@ les titres Leboncoin seuls sont trop peu fiables.
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .config import Search
 from .model import Listing
@@ -294,6 +295,15 @@ def _parse_dt(value: str | None) -> datetime | None:
     return dt.replace(tzinfo=dt.tzinfo or UTC)
 
 
+def _day_start(day: str) -> datetime:
+    """Minuit (heure de Paris) du jour "AAAA-MM-JJ", en datetime aware."""
+    try:
+        tz = ZoneInfo("Europe/Paris")
+    except ZoneInfoNotFoundError:  # image sans tzdata : UTC, écart d'une heure ou deux
+        tz = UTC
+    return datetime.combine(date.fromisoformat(day), time.min, tzinfo=tz)
+
+
 def first_reject(listing: Listing, search: Search) -> str | None:
     """Label du PREMIER critère échoué, ou None si l'annonce passe tout.
 
@@ -374,6 +384,10 @@ def first_reject(listing: Listing, search: Search) -> str | None:
             hours=search.max_age_hours
         ):
             return "max_age_hours"
+    if search.published_after:
+        published = _parse_dt(listing.published_at)
+        if published is not None and published < _day_start(search.published_after):
+            return "published_after"
     # Champs structurés : ignorés si l'annonce ne les renseigne pas (None).
     if (
         search.computer_type

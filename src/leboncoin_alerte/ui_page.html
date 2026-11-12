@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mes alertes Leboncoin</title>
+<style>
+:root{--bg:#0b0807;--panel:#15100d;--panel2:#1c1511;--ink:#f6ebe1;--ink2:#cdb9a8;--ink3:#97806e;--acc:#ff8a3d;--acc2:#ffa766;--on-acc:#1a0b02;--line:rgba(255,138,61,.16);--line2:rgba(255,138,61,.4);--chip:rgba(255,138,61,.1);--ok:#5fd27a;--bad:#ff7a6b;color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh}
+[hidden]{display:none!important}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:6px}
+header{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:16px;padding:14px 24px;background:rgba(11,8,7,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+header h1{margin:0;font-size:18px;font-weight:650;letter-spacing:.01em;flex:1}
+header h1 span{color:var(--acc)}
+.status{font-size:13px;color:var(--ink3)}
+.status.dirty{color:var(--acc2)}
+.status.ok{color:var(--ok)}
+.btn{appearance:none;border:1px solid var(--line2);background:transparent;border-radius:8px;min-height:40px;padding:0 16px;cursor:pointer;font-weight:550;color:var(--ink)}
+.btn:hover:not(:disabled){background:var(--chip);border-color:var(--acc)}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:var(--on-acc)}
+.btn.primary:hover:not(:disabled){background:var(--acc2)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.ghost{border-color:transparent;color:var(--ink2)}
+.btn.danger:hover{border-color:var(--bad);color:var(--bad);background:rgba(255,122,107,.08)}
+.btn.small{min-height:32px;padding:0 12px;font-size:13px}
+.layout{display:grid;grid-template-columns:280px minmax(0,1fr);gap:24px;max-width:1100px;margin:0 auto;padding:24px}
+nav{display:flex;flex-direction:column;gap:8px;position:sticky;top:88px;align-self:start}
+.navlabel{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink3);margin:4px 4px 2px}
+.item{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:12px 14px;cursor:pointer}
+.item:hover{border-color:var(--line2)}
+.item[aria-current="true"]{border-color:var(--acc);background:var(--panel2)}
+.item b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item small{display:block;color:var(--ink3);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.add{border-style:dashed;color:var(--ink2);text-align:center}
+main{min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px;margin-bottom:16px}
+.card h2{margin:0 0 4px;font-size:16px;font-weight:650}
+.card .sub{margin:0 0 18px;color:var(--ink3);font-size:13.5px}
+.field{margin-bottom:18px}
+.field:last-child{margin-bottom:0}
+.field>label,.lbl{display:block;font-weight:550;margin-bottom:6px;font-size:14px}
+.help{color:var(--ink3);font-size:12.5px;margin:6px 0 0}
+input[type=text],input[type=number],input[type=password],input[type=url],input[type=date],input[type=time],select,textarea{width:100%;background:var(--bg);border:1px solid var(--line2);border-radius:8px;padding:9px 12px;min-height:40px}
+textarea{resize:vertical;min-height:64px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--acc)}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.row>*{flex:1 1 0;min-width:120px}
+.price{display:flex;align-items:center;gap:10px}
+.price input{max-width:140px}
+.price span{color:var(--ink3)}
+.pills{display:flex;flex-wrap:wrap;gap:8px}
+.pill{border:1px solid var(--line2);background:transparent;border-radius:999px;padding:6px 14px;cursor:pointer;font-size:13.5px;color:var(--ink2)}
+.pill:hover{border-color:var(--acc);color:var(--ink)}
+.pill[aria-pressed="true"]{background:var(--acc);border-color:var(--acc);color:var(--on-acc);font-weight:550}
+.switch,.field>label.switch{display:flex;align-items:center;gap:12px;cursor:pointer;min-height:36px;margin:0;font-weight:500}
+.switch input{appearance:none;width:40px;height:22px;border-radius:999px;background:#3a2c23;position:relative;cursor:pointer;flex:none;margin:0;transition:background .15s}
+.switch input::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#f6ebe1;transition:left .15s}
+.switch input:checked{background:var(--acc)}
+.switch input:checked::after{left:21px}
+.tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--bg);border:1px solid var(--line2);border-radius:8px;padding:6px;min-height:40px;cursor:text}
+.tags:focus-within{border-color:var(--acc)}
+.tag{display:inline-flex;align-items:center;gap:4px;background:var(--chip);border:1px solid var(--line);border-radius:6px;padding:2px 4px 2px 9px;font-size:13.5px}
+.tag button{border:0;background:transparent;color:var(--ink3);cursor:pointer;padding:0 4px;font-size:15px;line-height:1}
+.tag button:hover{color:var(--bad)}
+.tags input{border:0;background:transparent;flex:1;min-width:120px;padding:4px;outline:none}
+.suggest{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.suggest button{border:1px dashed var(--line2);background:transparent;border-radius:6px;padding:2px 9px;font-size:12.5px;color:var(--ink3);cursor:pointer}
+.suggest button:hover{color:var(--ink);border-color:var(--acc)}
+details.adv{border-top:1px solid var(--line);margin-top:6px;padding-top:14px}
+details.adv>summary{cursor:pointer;color:var(--ink2);font-weight:550;list-style:none;display:flex;align-items:center;gap:8px}
+details.adv>summary::before{content:"›";display:inline-block;transition:transform .15s;color:var(--acc);font-size:18px}
+details.adv[open]>summary::before{transform:rotate(90deg)}
+details.adv .inner{padding-top:16px}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,52px));gap:6px;margin-top:14px}.cal .pill{padding:6px 0;text-align:center}
+.sched-list{display:grid;gap:8px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+.footer-actions{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap}
+.secret{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.badge{font-size:13px;padding:4px 10px;border-radius:999px;background:rgba(95,210,122,.12);color:var(--ok)}
+.badge.off{background:rgba(255,122,107,.1);color:var(--bad)}
+.channel{border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:10px}
+.channel .body{padding-top:14px}
+.msg{border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:14px}
+.msg.err{background:rgba(255,122,107,.1);border:1px solid rgba(255,122,107,.4);color:#ffc2ba}
+.msg.okm{background:rgba(95,210,122,.08);border:1px solid rgba(95,210,122,.35);color:#c9f2d2}
+pre.toml{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:14px;max-height:420px;overflow:auto;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;color:var(--ink2);margin:12px 0 0}
+.empty{color:var(--ink3);text-align:center;padding:40px 0}
+@media (max-width:760px){.layout{grid-template-columns:1fr;padding:16px}nav{position:static}.grid2{grid-template-columns:1fr}header{padding:12px 16px;gap:10px}header h1{font-size:16px}.status{font-size:12px;max-width:110px;line-height:1.25}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Mes alertes <span>Leboncoin</span></h1>
+  <span id="status" class="status" role="status" aria-live="polite">Chargement…</span>
+  <button id="saveBtn" class="btn primary" type="button" disabled>Enregistrer</button>
+</header>
+<div class="layout">
+  <nav aria-label="Alertes">
+    <div class="navlabel">Alertes</div>
+    <div id="list"></div>
+    <button id="addBtn" class="item add" type="button">+ Nouvelle alerte</button>
+    <div class="navlabel" style="margin-top:14px">Réglages</div>
+    <button id="settingsBtn" class="item" type="button"><b>Notifications et fréquence</b><small id="settingsSum"></small></button>
+  </nav>
+  <main>
+    <div id="msg"></div>
+    <div id="view"></div>
+    <details class="card" id="tomlBox">
+      <summary style="cursor:pointer;color:var(--ink3);font-size:13.5px">Voir le fichier de configuration généré</summary>
+      <pre class="toml" id="toml">…</pre>
+    </details>
+  </main>
+</div>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const h = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === 'class') e.className = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (k === 'text') e.textContent = v;
+    else e.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) e.append(c);
+  return e;
+};
+
+const S = { cfg: null, secrets: {}, updates: {}, version: null, sel: 0, view: 'search', dirty: false, saving: false };
+
+// ── helpers données ──────────────────────────────────────────────
+const searches = () => (S.cfg.search ||= []);
+const notify = () => (S.cfg.notify ||= {});
+const general = () => (S.cfg.general ||= {});
+function setKey(obj, key, val) {
+  const empty = val == null || val === '' || val === false || (Array.isArray(val) && !val.length) || (typeof val === 'number' && isNaN(val));
+  if (empty) delete obj[key]; else obj[key] = val;
+  touch();
+}
+function touch() { S.dirty = true; renderStatus(); renderList(); schedulePreview(); }
+const num = (v) => { const n = parseInt(v, 10); return isNaN(n) ? null : n; };
+function slug(s) { return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40); }
+function summary(s) {
+  const p = [];
+  if (s.min_price != null && s.max_price != null) p.push(`${s.min_price}–${s.max_price} €`);
+  else if (s.max_price != null) p.push(`≤ ${s.max_price} €`);
+  else if (s.min_price != null) p.push(`≥ ${s.min_price} €`);
+  try { const u = new URL(s.url); const t = u.searchParams.get('text'); if (t) p.push(t); const l = u.searchParams.get('locations'); if (l) p.push(l.split('_')[0]); } catch {}
+  const when = scheduleText(s.schedule);
+  if (when) p.unshift(when);
+  return p.join(' · ') || 'Aucun filtre';
+}
+const DAYS = ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'];
+const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+const fmtDur = (m) => { if (m >= 10080 && m % 10080 === 0) return `${m / 10080} semaine${m > 10080 ? 's' : ''}`; if (m >= 1440 && m % 1440 === 0) return `${m / 1440} jour${m > 1440 ? 's' : ''}`; const h = Math.floor(m / 60), r = m % 60; return h ? (r ? `${h} h ${String(r).padStart(2, '0')}` : `${h} h`) : `${r} min`; };
+function scheduleText(sc) {
+  if (!sc) return '';
+  if (sc.every_minutes) return `toutes les ${fmtDur(sc.every_minutes)}`;
+  const at = (sc.at || []).join(', ');
+  if (sc.weekdays?.length) return `${sc.weekdays.map((d) => d.slice(0, 3)).join(', ')} à ${at}`;
+  if (sc.month_days?.length) return `le ${sc.month_days.join(', ')} du mois à ${at}`;
+  return `chaque jour à ${at}`;
+}
+
+// ── composants ───────────────────────────────────────────────────
+function field(label, control, help) {
+  return h('div', { class: 'field' }, h('label', { text: label }), control, help ? h('p', { class: 'help', text: help }) : null);
+}
+function text(obj, key, attrs = {}) {
+  return h('input', { type: 'text', value: obj[key] ?? '', ...attrs, oninput: (e) => setKey(obj, key, e.target.value.trim()) });
+}
+function number(obj, key, attrs = {}) {
+  return h('input', { type: 'number', min: 0, inputmode: 'numeric', value: obj[key] ?? '', ...attrs, oninput: (e) => setKey(obj, key, num(e.target.value)) });
+}
+function pills(obj, key, options, { multi = false } = {}) {
+  const box = h('div', { class: 'pills', role: 'group' });
+  const draw = () => {
+    box.textContent = '';
+    for (const [val, lab] of options) {
+      const cur = obj[key];
+      const on = multi ? (cur || []).includes(val) : (cur ?? null) === val;
+      box.append(h('button', { type: 'button', class: 'pill', 'aria-pressed': String(on), text: lab, onclick: () => {
+        if (multi) { const set = new Set(cur || []); on ? set.delete(val) : set.add(val); setKey(obj, key, [...set]); }
+        else setKey(obj, key, val);
+        draw();
+      } }));
+    }
+  };
+  draw();
+  return box;
+}
+function toggle(obj, key, label) {
+  return h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: !!obj[key], onchange: (e) => setKey(obj, key, e.target.checked) }), h('span', { text: label }));
+}
+function tags(obj, key, { placeholder = 'Écris puis Entrée', suggestions = [], lower = true } = {}) {
+  const wrap = h('div');
+  const box = h('div', { class: 'tags' });
+  const input = h('input', { type: 'text', placeholder });
+  const sug = h('div', { class: 'suggest' });
+  const list = () => obj[key] || [];
+  const add = (v) => { v = v.trim(); if (lower) v = v.toLowerCase(); if (!v || list().includes(v)) return; setKey(obj, key, [...list(), v]); draw(); };
+  const draw = () => {
+    box.textContent = '';
+    for (const t of list()) box.append(h('span', { class: 'tag' }, t, h('button', { type: 'button', 'aria-label': `Retirer ${t}`, text: '×', onclick: () => { setKey(obj, key, list().filter((x) => x !== t)); draw(); } })));
+    box.append(input);
+    sug.textContent = '';
+    for (const s of suggestions.filter((x) => !list().includes(x))) sug.append(h('button', { type: 'button', text: `+ ${s}`, onclick: () => add(s) }));
+  };
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add(input.value); input.value = ''; input.focus(); }
+    else if (e.key === 'Backspace' && !input.value && list().length) { setKey(obj, key, list().slice(0, -1)); draw(); input.focus(); }
+  });
+  input.addEventListener('blur', () => { if (input.value.trim()) { add(input.value); input.value = ''; } });
+  box.addEventListener('click', () => input.focus());
+  draw();
+  wrap.append(box, suggestions.length ? sug : '');
+  return wrap;
+}
+function lines(obj, key, placeholder) {
+  return h('textarea', { placeholder, rows: 2, spellcheck: 'false', oninput: (e) => setKey(obj, key, e.target.value.split('\n').map((x) => x.trim()).filter(Boolean)) }, (obj[key] || []).join('\n'));
+}
+function card(title, sub, ...kids) { return h('section', { class: 'card' }, h('h2', { text: title }), sub ? h('p', { class: 'sub', text: sub }) : null, ...kids); }
+
+// ── vues ─────────────────────────────────────────────────────────
+function renderList() {
+  const box = $('list'); box.textContent = '';
+  searches().forEach((s, i) => box.append(h('button', { type: 'button', class: 'item', 'aria-current': String(S.view === 'search' && S.sel === i), onclick: () => { S.view = 'search'; S.sel = i; render(); } },
+    h('b', { text: s.name || 'Sans nom' }), h('small', { text: summary(s) }))));
+  $('settingsBtn').setAttribute('aria-current', String(S.view === 'settings'));
+  const on = ['discord', 'telegram', 'email', 'webhook'].filter((c) => notify()[c]?.enabled).map(cap);
+  $('settingsSum').textContent = `${on.join(', ') || 'Aucun canal'} · toutes les ${general().interval_minutes ?? 15} min`;
+}
+const cap = (s) => s[0].toUpperCase() + s.slice(1);
+
+function viewSearch() {
+  const list = searches();
+  if (!list.length) return h('div', { class: 'card empty' }, h('p', { text: 'Aucune alerte pour le moment.' }), h('button', { class: 'btn primary', type: 'button', text: '+ Créer ma première alerte', onclick: addSearch }));
+  const s = list[Math.min(S.sel, list.length - 1)];
+  const urlInput = h('textarea', { rows: 2, spellcheck: 'false', placeholder: 'https://www.leboncoin.fr/recherche?…', oninput: (e) => { setKey(s, 'url', e.target.value.trim()); openLink.href = s.url || '#'; } }, s.url || '');
+  const openLink = h('a', { class: 'btn small', href: s.url || '#', target: '_blank', rel: 'noopener noreferrer', text: 'Ouvrir sur Leboncoin ↗', style: 'display:inline-flex;align-items:center;text-decoration:none' });
+  const quick = h('input', { type: 'text', placeholder: 'ex. vélo électrique, canapé, ps5' });
+  const gen = () => {
+    const t = quick.value.trim(); if (!t) return;
+    s.url = `https://www.leboncoin.fr/recherche?text=${encodeURIComponent(t)}`;
+    urlInput.value = s.url; openLink.href = s.url;
+    if (!s.name || s.name.startsWith('nouvelle-alerte')) { s.name = slug(t); nameInput.value = s.name; }
+    touch();
+  };
+  quick.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); gen(); } });
+  const nameInput = text(s, 'name', { placeholder: 'ex. velo-nantes' });
+
+  return h('div', {},
+    card('Ce que je surveille', 'Le plus simple : fais ta recherche sur leboncoin.fr avec les filtres voulus (catégorie, ville, prix…), puis colle l’adresse de la page ici.',
+      field('Nom de l’alerte', nameInput, 'Il apparaît dans les notifications.'),
+      field('Lien de la recherche Leboncoin', h('div', {}, urlInput, h('div', { class: 'row', style: 'margin-top:8px' }, openLink))),
+      h('div', { class: 'field' }, h('span', { class: 'lbl', text: 'Pas de lien ? Écris simplement ce que tu cherches' }),
+        h('div', { class: 'row' }, quick, h('button', { class: 'btn', type: 'button', text: 'Créer le lien', onclick: gen, style: 'flex:0 0 auto' })),
+        h('p', { class: 'help', text: 'Recherche dans toute la France. Pour une ville précise, passe plutôt par le site.' }))),
+    card('Fréquence de cette alerte', 'À quel moment le bot vérifie cette recherche.', scheduleField(s)),
+    card('Prix', null,
+      h('div', { class: 'price' }, h('span', { text: 'Entre' }), number(s, 'min_price', { placeholder: 'min' }), h('span', { text: 'et' }), number(s, 'max_price', { placeholder: 'max' }), h('span', { text: '€' }))),
+    card('Mots-clés', 'Appliqués au titre de l’annonce.',
+      field('Le titre doit contenir au moins un de ces mots', tags(s, 'keywords_include', { placeholder: 'ex. vélo, trek…' }), 'Laisse vide pour tout garder.'),
+      field('Ignorer les annonces dont le titre contient', tags(s, 'keywords_exclude', { placeholder: 'ex. cassé…', suggestions: ['recherche', 'je cherche', 'échange', 'hs', 'pour pièces', 'cassé'] }))),
+    card('Filtres', null,
+      field('Villes', tags(s, 'cities_include', { placeholder: 'ex. nantes, rezé…' }), 'Garde seulement les annonces de ces villes. Vide = toutes.'),
+      field('Publiée depuis', ageField(s)),
+      field('Vendeur', pills(s, 'seller_type', [[null, 'Tous'], ['particulier', 'Particuliers'], ['pro', 'Professionnels']])),
+      field('État', pills(s, 'condition_include', [['neuf', 'Neuf'], ['très bon état', 'Très bon état'], ['bon état', 'Bon état'], ['satisfaisant', 'Satisfaisant']], { multi: true }), 'Aucun choix = tous les états.'),
+      h('div', { class: 'field' }, toggle(s, 'shippable_only', 'Uniquement les annonces avec livraison possible')),
+      viewMore(s)),
+    viewTech(s),
+    h('div', { class: 'footer-actions' },
+      h('button', { class: 'btn', type: 'button', text: 'Dupliquer cette alerte', onclick: () => { const c = structuredClone(s); c.name = `${s.name}-copie`; list.splice(S.sel + 1, 0, c); S.sel++; touch(); render(); } }),
+      h('button', { class: 'btn danger', type: 'button', text: 'Supprimer', onclick: () => { if (!confirm(`Supprimer l’alerte « ${s.name} » ?`)) return; list.splice(S.sel, 1); S.sel = Math.max(0, S.sel - 1); touch(); render(); } })));
+}
+
+// Durée heures + minutes (roulettes natives des champs numériques).
+function durationInput(get, set, { units = ['min', 'h', 'j', 'sem'] } = {}) {
+  // « Toutes les [N] [minutes|heures|jours|semaines] » ; en heures, minutes en plus (14 h 37).
+  const U = { min: [1, 'minutes'], h: [60, 'heures'], j: [1440, 'jours'], sem: [10080, 'semaines'] };
+  const v = get();
+  let unit = units.filter((u) => u !== 'min').reverse().find((u) => v % U[u][0] === 0) || (v >= 60 && units.includes('h') ? 'h' : 'min');
+  const wrap = h('div', { class: 'price', style: 'flex-wrap:wrap' });
+  const n = h('input', { type: 'number', min: 1, inputmode: 'numeric', style: 'max-width:90px', 'aria-label': 'nombre' });
+  const sel = h('select', { style: 'max-width:150px', 'aria-label': 'unité' }, ...units.map((u) => h('option', { value: u, text: U[u][1] })));
+  const extra = h('input', { type: 'number', min: 0, max: 59, inputmode: 'numeric', style: 'max-width:80px', 'aria-label': 'minutes en plus' });
+  const extraBox = h('span', { class: 'price' }, h('span', { text: 'et' }), extra, h('span', { text: 'min' }));
+  const fill = (val) => {
+    n.value = unit === 'h' ? Math.floor(val / 60) : Math.max(1, Math.round(val / U[unit][0]));
+    extra.value = unit === 'h' ? val % 60 : 0;
+    sel.value = unit; extraBox.hidden = unit !== 'h';
+  };
+  const upd = () => {
+    const t = (num(n.value) || 0) * U[unit][0] + (unit === 'h' ? Math.min(num(extra.value) || 0, 59) : 0);
+    set(t > 0 ? t : null);
+  };
+  sel.addEventListener('change', () => { unit = sel.value; extra.value = 0; extraBox.hidden = unit !== 'h'; upd(); });
+  n.addEventListener('input', upd); extra.addEventListener('input', upd);
+  fill(v);
+  wrap.append(n, sel, extraBox);
+  return wrap;
+}
+
+// Planning par alerte → [search.schedule] (voir schedule.py côté bot).
+function scheduleField(s) {
+  const wrap = h('div');
+  const mode = () => { const sc = s.schedule; if (!sc) return 'base'; if (sc.every_minutes) return 'every'; if (sc.weekdays?.length) return 'week'; if (sc.month_days?.length) return 'month'; return 'day'; };
+  const setSched = (sc) => { if (sc) s.schedule = sc; else delete s.schedule; touch(); draw(); };
+  const times = () => s.schedule?.at?.length ? s.schedule.at : ['09:00'];
+  const draw = () => {
+    wrap.textContent = '';
+    const m = mode();
+    const base = general().interval_minutes ?? 15;
+    const modes = [['base', `À chaque passage (${fmtDur(base)})`], ['every', 'Intervalle libre'], ['day', 'Chaque jour'], ['week', 'Chaque semaine'], ['month', 'Chaque mois']];
+    const box = h('div', { class: 'pills', role: 'group' });
+    for (const [k, lab] of modes) box.append(h('button', { type: 'button', class: 'pill', 'aria-pressed': String(m === k), text: lab, onclick: () => {
+      if (k === m) return;
+      if (k === 'base') return setSched(null);
+      if (k === 'every') return setSched({ every_minutes: 60 });
+      const at = times();
+      if (k === 'day') return setSched({ at });
+      if (k === 'week') return setSched({ at, weekdays: ['lun'] });
+      return setSched({ at, month_days: [1] });
+    } }));
+    wrap.append(box);
+    const sc = s.schedule;
+    if (m === 'base') wrap.append(h('p', { class: 'help', text: 'Suit le rythme réglé dans « Notifications et fréquence ».' }));
+    if (m === 'every') wrap.append(h('div', { style: 'margin-top:14px' }, h('span', { class: 'lbl', style: 'margin-bottom:8px', text: 'Toutes les' }), durationInput(() => sc.every_minutes, (v) => { sc.every_minutes = v || 1; touch(); })));
+    if (m === 'week') {
+      const days = h('div', { class: 'pills', style: 'margin-top:14px' });
+      DAYS.forEach((d, i) => days.append(h('button', { type: 'button', class: 'pill', 'aria-pressed': String(sc.weekdays.includes(d)), text: DAY_LABELS[i], onclick: () => {
+        const set = new Set(sc.weekdays); set.has(d) ? set.delete(d) : set.add(d);
+        if (!set.size) return; sc.weekdays = DAYS.filter((x) => set.has(x)); touch(); draw();
+      } })));
+      wrap.append(days);
+    }
+    if (m === 'month') {
+      const grid = h('div', { class: 'cal' });
+      for (let d = 1; d <= 31; d++) grid.append(h('button', { type: 'button', class: 'pill', 'aria-pressed': String(sc.month_days.includes(d)), text: String(d), onclick: () => {
+        const set = new Set(sc.month_days); set.has(d) ? set.delete(d) : set.add(d);
+        if (!set.size) return; sc.month_days = [...set].sort((a, b) => a - b); touch(); draw();
+      } }));
+      wrap.append(grid, h('p', { class: 'help', text: 'Les 29, 30 et 31 sont sautés les mois qui n’en ont pas.' }));
+    }
+    if (['day', 'week', 'month'].includes(m)) {
+      const list = h('div', { class: 'row', style: 'margin-top:14px;flex-wrap:wrap;justify-content:flex-start' }, h('span', { class: 'lbl', style: 'flex:0 0 auto;margin:0;min-width:0', text: 'à' }));
+      sc.at.forEach((t, i) => {
+        const inp = h('input', { type: 'time', value: t, step: 60, style: 'max-width:130px;flex:0 0 auto;min-width:0' });
+        inp.addEventListener('change', () => { if (!inp.value) return; sc.at[i] = inp.value.slice(0, 5); sc.at = [...new Set(sc.at)].sort(); touch(); draw(); });
+        list.append(h('span', { class: 'row', style: 'flex:0 0 auto;gap:2px;min-width:0' }, inp,
+          sc.at.length > 1 ? h('button', { type: 'button', class: 'btn small ghost', 'aria-label': `Retirer ${t}`, text: '×', onclick: () => { sc.at.splice(i, 1); touch(); draw(); } }) : null));
+      });
+      list.append(h('button', { type: 'button', class: 'btn small', style: 'flex:0 0 auto;min-width:0', text: '+ Ajouter une heure', onclick: () => { const t = new Set(sc.at); let hh = 12; while (t.has(`${String(hh).padStart(2, '0')}:00`)) hh = (hh + 1) % 24; sc.at = [...sc.at, `${String(hh).padStart(2, '0')}:00`].sort(); touch(); draw(); } }));
+      wrap.append(list, h('p', { class: 'help', text: 'Heure de Paris. Le bot se réveille pile à l’heure prévue.' }));
+    }
+  };
+  draw();
+  return wrap;
+}
+
+// Ancienneté : durée glissante (max_age_hours) OU date fixe (published_after).
+function ageField(s) {
+  const wrap = h('div');
+  const presets = [[24, '24 h'], [48, '48 h'], [168, '1 semaine'], [720, '1 mois']];
+  const draw = () => {
+    wrap.textContent = '';
+    const cur = s.max_age_hours ?? null;
+    const opts = [[null, 'Peu importe'], ...presets];
+    if (cur != null && !presets.some(([v]) => v === cur)) opts.push([cur, cur % 24 ? `${cur} h` : `${cur / 24} jours`]);
+    const box = h('div', { class: 'pills', role: 'group' });
+    for (const [v, lab] of opts) {
+      const on = !s.published_after && cur === v;
+      box.append(h('button', { type: 'button', class: 'pill', 'aria-pressed': String(on), text: v == null ? lab : `Moins de ${lab}`, onclick: () => { delete s.published_after; setKey(s, 'max_age_hours', v); draw(); } }));
+    }
+    const days = h('input', { type: 'number', min: 1, inputmode: 'numeric', placeholder: 'nb', style: 'max-width:80px', value: cur != null && !presets.some(([v]) => v === cur) && !(cur % 24) ? cur / 24 : '' });
+    days.addEventListener('change', () => { const n = num(days.value); if (n && n > 0) { delete s.published_after; setKey(s, 'max_age_hours', n * 24); draw(); } });
+    const dateIn = h('input', { type: 'date', value: s.published_after || '', max: new Date().toISOString().slice(0, 10), style: 'max-width:180px' });
+    dateIn.addEventListener('change', () => { if (dateIn.value) delete s.max_age_hours; setKey(s, 'published_after', dateIn.value || null); draw(); });
+    wrap.append(box,
+      h('div', { class: 'price', style: 'margin-top:10px;flex-wrap:wrap' },
+        h('span', { text: 'ou moins de' }), days, h('span', { text: 'jours' }),
+        h('span', { text: '· ou depuis le', style: 'margin-left:6px' }), dateIn,
+        s.published_after ? h('button', { type: 'button', class: 'btn small ghost', text: 'Effacer', onclick: () => { setKey(s, 'published_after', null); draw(); } }) : null));
+  };
+  draw();
+  return wrap;
+}
+
+const TECH_KEYS = ['min_ram_gb', 'min_vram_gb', 'vram_ask', 'min_stick_gb', 'min_disk_gb', 'computer_type', 'min_year', 'market_kind'];
+const MORE_KEYS = ['text_keywords_include', 'text_keywords_exclude', 'cities_exclude', 'pages', 'regex_all', 'regex_any'];
+
+function viewMore(s) {
+  return h('details', { class: 'adv', open: MORE_KEYS.some((k) => s[k] != null) || null },
+    h('summary', { text: 'Plus de filtres' }),
+    h('div', { class: 'inner' },
+      field('La description doit contenir au moins un de ces mots', tags(s, 'text_keywords_include'), 'Cherche dans le titre et la description complète.'),
+      field('Ignorer si la description contient', tags(s, 'text_keywords_exclude', { suggestions: ['pour pièces', 'ne fonctionne pas', 'défectueux', 'à réparer'] })),
+      field('Villes à exclure', tags(s, 'cities_exclude')),
+      field('Pages lues à chaque passage', number(s, 'pages', { min: 1, placeholder: '10', style: 'max-width:140px' }), '35 annonces par page. Pour une recherche triée par date, 2 ou 3 suffisent.'),
+      h('details', { class: 'adv', open: (s.regex_all || s.regex_any) ? true : null },
+        h('summary', { text: 'Mode expert : expressions régulières' }),
+        h('div', { class: 'inner' },
+          field('Toutes doivent correspondre', lines(s, 'regex_all', 'une par ligne'), 'Appliquées au texte complet, sans tenir compte des majuscules.'),
+          field('Au moins une doit correspondre', lines(s, 'regex_any', 'une par ligne'))))));
+}
+
+function viewTech(s) {
+  const used = TECH_KEYS.some((k) => s[k] != null);
+  const body = h('div', { hidden: !used || null, style: 'padding-top:16px' },
+    h('div', { class: 'grid2' },
+      field('RAM minimum (Go)', number(s, 'min_ram_gb')),
+      field('Mémoire de carte graphique minimum (Go)', number(s, 'min_vram_gb')),
+      field('Taille minimum d’une barrette RAM (Go)', number(s, 'min_stick_gb'), '« 32 Go (2×16) » compte 16 Go par barrette.'),
+      field('Stockage total minimum (Go)', number(s, 'min_disk_gb'), '1 To = 1024 Go.'),
+      field('Année du matériel minimum', number(s, 'min_year'))),
+    h('div', { class: 'field' }, toggle(s, 'vram_ask', 'Si la mémoire de la carte n’est pas précisée, préparer une question au vendeur au lieu d’ignorer l’annonce')),
+    field('Type d’ordinateur', pills(s, 'computer_type', [[null, 'Tous'], ['Fixe', 'Fixe'], ['Portable', 'Portable']])),
+    field('Suivi des prix du marché', pills(s, 'market_kind', [[null, 'Aucun'], ['gpu', 'Cartes graphiques'], ['ram', 'RAM']]), 'Toutes les annonces de cette recherche alimentent les prix de référence.'));
+  const sw = h('input', { type: 'checkbox', checked: used || null, onchange: (e) => {
+    if (!e.target.checked && TECH_KEYS.some((k) => s[k] != null)) {
+      if (!confirm('Retirer les critères informatiques de cette alerte ?')) { e.target.checked = true; return; }
+      for (const k of TECH_KEYS) delete s[k];
+      touch(); render(); return;
+    }
+    body.hidden = !e.target.checked;
+  } });
+  return h('section', { class: 'card' },
+    h('label', { class: 'switch' }, sw, h('span', {}, h('b', { text: 'Critères pour le matériel informatique' }), h('span', { class: 'help', style: 'display:block;margin:0', text: 'RAM, carte graphique, stockage… Seulement si tu cherches un ordinateur ou des composants.' }))),
+    body);
+}
+
+function secretField(ch, label) {
+  const box = h('div', { class: 'secret' });
+  const draw = (editing) => {
+    box.textContent = '';
+    if (editing) {
+      const inp = h('input', { type: 'password', autocomplete: 'off', placeholder: `Nouveau ${label.toLowerCase()}`, value: S.updates[ch] || '', oninput: (e) => { S.updates[ch] = e.target.value; touch(); } });
+      box.append(inp, h('button', { class: 'btn small ghost', type: 'button', text: 'Annuler', onclick: () => { delete S.updates[ch]; touch(); draw(false); } }));
+      setTimeout(() => inp.focus());
+    } else {
+      box.append(h('span', { class: S.secrets[ch] ? 'badge' : 'badge off', text: S.secrets[ch] ? 'Configuré ✓' : 'Non configuré' }),
+        h('button', { class: 'btn small', type: 'button', text: S.secrets[ch] ? 'Remplacer' : 'Renseigner', onclick: () => draw(true) }));
+    }
+  };
+  draw(!!S.updates[ch]);
+  return field(label, box, 'Stocké à part, dans le fichier .env. La valeur n’est jamais affichée.');
+}
+
+function channel(ch, title, body) {
+  const n = notify(); const sec = n[ch] || {};
+  const inner = h('div', { class: 'body', hidden: !sec.enabled || null }, ...body(sec));
+  return h('div', { class: 'channel' },
+    h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: !!sec.enabled, onchange: (e) => { sec.enabled = e.target.checked; n[ch] = sec; inner.hidden = !sec.enabled; touch(); } }), h('b', { text: title })),
+    inner);
+}
+
+function viewSettings() {
+  const g = general();
+  return h('div', {},
+    card('Notifications', 'Où recevoir les nouvelles annonces. Active au moins un canal.',
+      channel('discord', 'Discord', () => [secretField('discord', 'Lien du webhook')]),
+      channel('telegram', 'Telegram', (sec) => [secretField('telegram', 'Jeton du bot'), field('Identifiant de la conversation', text(sec, 'chat_id'))]),
+      channel('email', 'E-mail', (sec) => [
+        h('div', { class: 'grid2' }, field('Serveur SMTP', text(sec, 'smtp_host', { placeholder: 'smtp.gmail.com' })), field('Port', number(sec, 'smtp_port', { placeholder: '587' })),
+          field('Identifiant', text(sec, 'username')), field('Expéditeur', text(sec, 'from'))),
+        secretField('email', 'Mot de passe'),
+        field('Destinataires', tags(sec, 'to', { placeholder: 'adresse puis Entrée', lower: false }))]),
+      channel('webhook', 'Webhook (avancé)', () => [secretField('webhook', 'Adresse du webhook')])),
+    card('Fréquence', null,
+      field('Rythme par défaut : vérifier toutes les', durationInput(() => g.interval_minutes ?? 15, (v) => setKey(g, 'interval_minutes', v || 15), { units: ['min', 'h'] }), 'S’applique aux alertes réglées sur « À chaque passage ». Moins de 10 minutes augmente le risque de blocage par Leboncoin.'),
+      field('Fréquence de chaque alerte', h('div', { class: 'sched-list' }, ...searches().map((x, i) => h('button', { type: 'button', class: 'item', onclick: () => { S.view = 'search'; S.sel = i; render(); window.scrollTo({ top: 0 }); } },
+        h('b', { text: x.name || 'Sans nom' }), h('small', { text: (scheduleText(x.schedule) || `à chaque passage (${fmtDur(g.interval_minutes ?? 15)})`) + ' · modifier ›' })))), 'Pour une alerte hebdomadaire ou mensuelle, ouvre-la et choisis « Chaque semaine » ou « Chaque mois ».'),
+      h('div', { class: 'field' }, toggle(g, 'hold_notifications', 'Valider moi-même chaque annonce avant l’envoi'),
+        h('p', { class: 'help', text: 'Les annonces retenues attendent ta validation dans le rapport quotidien au lieu de partir directement.' }))));
+}
+
+function render() {
+  renderList();
+  const v = $('view'); v.textContent = '';
+  v.append(S.view === 'settings' ? viewSettings() : viewSearch());
+}
+function addSearch() {
+  const list = searches();
+  let n = 1; while (list.some((s) => s.name === `nouvelle-alerte-${n}`)) n++;
+  list.push({ name: `nouvelle-alerte-${n}`, url: '' });
+  S.view = 'search'; S.sel = list.length - 1; touch(); render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── statut, aperçu, sauvegarde ───────────────────────────────────
+function renderStatus(kind, txt) {
+  const st = $('status');
+  st.className = 'status' + (kind ? ` ${kind}` : S.dirty ? ' dirty' : '');
+  st.textContent = txt || (S.dirty ? 'Modifications non enregistrées' : 'À jour');
+  $('saveBtn').disabled = !S.dirty || S.saving;
+}
+function showMsg(kind, txt) {
+  const m = $('msg'); m.textContent = '';
+  if (txt) m.append(h('div', { class: `msg ${kind}`, role: kind === 'err' ? 'alert' : 'status', text: txt }));
+}
+async function api(path, body) {
+  const r = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-LBC-UI': '1' }, body: JSON.stringify(body) } : {});
+  const data = await r.json().catch(() => ({ error: `Erreur ${r.status}` }));
+  if (!r.ok) throw Object.assign(new Error(data.error || `Erreur ${r.status}`), { status: r.status });
+  return data;
+}
+const payload = () => ({ config: S.cfg, secrets: S.updates, version: S.version });
+let pvTimer = null;
+function schedulePreview() { clearTimeout(pvTimer); pvTimer = setTimeout(preview, 400); }
+async function preview() {
+  try { $('toml').textContent = (await api('/api/preview', payload())).toml; if (S.dirty) showMsg(); }
+  catch (e) { $('toml').textContent = `⚠ ${e.message}`; }
+}
+async function save() {
+  S.saving = true; renderStatus(null, 'Enregistrement…');
+  try {
+    const r = await api('/api/save', payload());
+    S.dirty = false; S.version = r.version;
+    for (const [k, v] of Object.entries(S.updates)) if (v) S.secrets[k] = true;
+    S.updates = {};
+    showMsg('okm', 'Enregistré. Le changement sera pris en compte au prochain passage, sans redémarrage.');
+    renderStatus('ok', 'Enregistré ✓');
+    if (S.view === 'settings') render();
+  } catch (e) {
+    showMsg('err', `Rien n’a été enregistré : ${e.message}`);
+    renderStatus();
+  } finally { S.saving = false; $('saveBtn').disabled = !S.dirty; }
+}
+$('saveBtn').addEventListener('click', save);
+$('addBtn').addEventListener('click', addSearch);
+$('settingsBtn').addEventListener('click', () => { S.view = 'settings'; render(); });
+window.addEventListener('beforeunload', (e) => { if (S.dirty) { e.preventDefault(); e.returnValue = ''; } });
+document.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); if (S.dirty) save(); } });
+
+(async () => {
+  try {
+    const d = await api('/api/config');
+    S.cfg = d.config;
+    for (const s of S.cfg.search || []) if (s.seller_type === 'private') s.seller_type = 'particulier';
+    S.secrets = d.secrets; S.version = d.version;
+    render(); renderStatus(); preview();
+  } catch (e) { showMsg('err', `Impossible de lire la configuration : ${e.message}`); renderStatus('', 'Erreur'); }
+})();
+</script>
+</body>
+</html>

@@ -61,6 +61,7 @@ keywords_exclude = ["manette", "jeu"]
 # cities_include = ["lyon", "sète"]  # la ville doit contenir un de ces mots
 # cities_exclude = ["béziers"]
 # max_age_hours = 48         # ignorer les annonces de plus de 48 h
+# published_after = "2026-11-01"  # ou date fixe : ignorer les annonces publiées avant ce jour
 # computer_type = "Fixe"     # attribut LBC : "Fixe" exclut les portables
 # seller_type = "particulier"  # ou "pro"
 # condition_include = ["neuf", "comme neuf"]  # état de l'annonce
@@ -68,6 +69,14 @@ keywords_exclude = ["manette", "jeu"]
 # shippable_only = false     # true = uniquement les annonces expédiables
 # pages = 3                  # pages de résultats par cycle (défaut 10, 35 annonces/page ;
 #                            # 2-3 suffisent pour une recherche triée par date)
+
+# Planification propre à l'alerte (optionnel, sinon à chaque passage du daemon) :
+# [search.schedule]
+# every_minutes = 877              # toutes les 14 h 37
+# — ou heures fixes (heure de Paris), éventuellement certains jours :
+# at = ["08:00", "14:37"]
+# weekdays = ["lun", "jeu"]        # chaque semaine ces jours-là
+# month_days = [1, 15]             # OU chaque mois ces jours-là
 
 # Duplique le bloc [[search]] pour surveiller plusieurs recherches.
 # Chaque recherche a SES propres filtres et sa propre dédupliqution.

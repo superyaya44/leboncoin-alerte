@@ -9,11 +9,25 @@ from __future__ import annotations
 import os
 import tomllib
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 
 
 class ConfigError(Exception):
     """Erreur de configuration lisible par l'utilisateur."""
+
+
+WEEKDAYS = ["lun", "mar", "mer", "jeu", "ven", "sam", "dim"]
+
+
+@dataclass
+class Schedule:
+    """Planification d'une alerte (voir schedule.py). Vide = à chaque passage."""
+
+    every_minutes: int | None = None
+    at: list[str] = field(default_factory=list)  # "HH:MM", heure de Paris
+    weekdays: list[int] = field(default_factory=list)  # 0 = lundi
+    month_days: list[int] = field(default_factory=list)  # 1..31
 
 
 @dataclass
@@ -59,6 +73,8 @@ class Search:
     cities_exclude: list[str] = field(default_factory=list)
     # Fraîcheur : ignorer les annonces publiées il y a plus de N heures.
     max_age_hours: int | None = None
+    # Date fixe "AAAA-MM-JJ" : ignorer les annonces publiées avant ce jour (heure de Paris).
+    published_after: str | None = None
     # Champs structurés Leboncoin (extraits de la page détail, None si absents).
     computer_type: str | None = None  # ex. "Fixe", "Portable" (ignoré si absent de l'annonce)
     seller_type: str | None = None  # "particulier" ou "pro"
@@ -69,6 +85,8 @@ class Search:
     # MAX_PAGES (10) ; réduire (2-3) pour les recherches larges triées par
     # date : les nouveautés sont en page 1, inutile de tout rescanner.
     pages: int = 10
+    # Planification propre à l'alerte ; None = à chaque passage du daemon.
+    schedule: Schedule | None = None
 
     def __post_init__(self) -> None:
         # "particulier"/"pro" → code Leboncoin, quelle que soit la voie de construction.
@@ -163,6 +181,49 @@ def _seller_code(value: str) -> str:
     raise ConfigError(f"seller_type invalide : {value!r} (attendu 'particulier' ou 'pro').")
 
 
+def _iso_date(value: object, search_name: str) -> str | None:
+    """Valide une date "AAAA-MM-JJ" (TOML date ou chaîne), la retourne en texte."""
+    if value in (None, ""):
+        return None
+    try:
+        return date.fromisoformat(str(value)).isoformat()
+    except ValueError as exc:
+        raise ConfigError(
+            f"search '{search_name}' : published_after doit être une date AAAA-MM-JJ."
+        ) from exc
+
+
+def _schedule(raw: object, search_name: str) -> Schedule | None:
+    if not raw:
+        return None
+    where = f"search '{search_name}' : schedule"
+    if not isinstance(raw, dict):
+        raise ConfigError(f"{where} doit être une table.")
+    every = raw.get("every_minutes")
+    at = [str(x).strip() for x in raw.get("at", [])]
+    _require(bool(every) != bool(at), f"{where} : mettre soit every_minutes, soit at.")
+    if every:
+        _require(int(every) >= 1, f"{where} : every_minutes doit être >= 1.")
+        _require(not raw.get("weekdays") and not raw.get("month_days"),
+                 f"{where} : weekdays/month_days vont avec at, pas avec every_minutes.")
+        return Schedule(every_minutes=int(every))
+    for hhmm in at:
+        h, _, m = hhmm.partition(":")
+        _require(h.isdigit() and m.isdigit() and int(h) < 24 and int(m) < 60 and len(m) == 2,
+                 f"{where} : heure invalide {hhmm!r} (attendu HH:MM).")
+    at = [f"{int(x.split(':')[0]):02d}:{x.split(':')[1]}" for x in at]
+    weekdays: list[int] = []
+    for d in raw.get("weekdays", []):
+        key = str(d).strip().lower()[:3]
+        _require(key in WEEKDAYS, f"{where} : jour inconnu {d!r} (lun, mar, mer, jeu, ven, sam, dim).")
+        weekdays.append(WEEKDAYS.index(key))
+    month_days = [int(d) for d in raw.get("month_days", [])]
+    _require(all(1 <= d <= 31 for d in month_days), f"{where} : month_days entre 1 et 31.")
+    _require(not (weekdays and month_days), f"{where} : weekdays OU month_days, pas les deux.")
+    return Schedule(at=sorted(set(at)), weekdays=sorted(set(weekdays)),
+                    month_days=sorted(set(month_days)))
+
+
 def _require(condition: object, message: str) -> None:
     if not condition:
         raise ConfigError(message)
@@ -206,12 +267,14 @@ def parse_config(raw: dict) -> Config:
                 cities_include=[str(k).lower() for k in s.get("cities_include", [])],
                 cities_exclude=[str(k).lower() for k in s.get("cities_exclude", [])],
                 max_age_hours=int(s["max_age_hours"]) if s.get("max_age_hours") is not None else None,
+                published_after=_iso_date(s.get("published_after"), name),
                 computer_type=str(s["computer_type"]) if s.get("computer_type") else None,
                 seller_type=_seller_code(str(s["seller_type"])) if s.get("seller_type") else None,
                 condition_include=[str(k).lower() for k in s.get("condition_include", [])],
                 min_year=int(s["min_year"]) if s.get("min_year") is not None else None,
                 shippable_only=bool(s.get("shippable_only", False)),
                 pages=max(1, int(s.get("pages", 10))),
+                schedule=_schedule(s.get("schedule"), name),
             )
         )
     _require(bool(searches), "Aucune [[search]] définie : ajoute au moins une recherche.")

@@ -1,6 +1,6 @@
 """Entrypoint CLI : lbc-alerte <commande>.
 
-Commandes : once | daemon | login | notify-test | status | init | export | import
+Commandes : once | daemon | login | notify-test | status | init | export | import | ui
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ import shutil
 import signal
 import sys
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from . import __version__
@@ -25,8 +25,29 @@ DEFAULT_CONFIG = Path("config.toml")
 
 
 def _cmd_once(config, args) -> int:
-    run_cycle(config, headless=not args.headful)
+    run_cycle(config, headless=not args.headful, force=True)  # manuel : toutes les alertes
     return 0
+
+
+def _daemon_wait(config) -> int:
+    """Secondes avant le prochain passage : l'intervalle général, ou plus tôt si
+    une alerte planifiée (heure fixe, intervalle propre) tombe avant."""
+    default = config.interval_minutes * 60
+    if not any(s.schedule for s in config.searches):
+        return default
+    try:
+        from .schedule import seconds_until_next
+        from .store import Store
+
+        store = Store(config.data_dir / "listings.db")
+        try:
+            last = store.last_runs()
+        finally:
+            store.close()
+        return seconds_until_next(config.searches, datetime.now(UTC), last, default)
+    except Exception as exc:  # noqa: BLE001 — au pire on garde l'intervalle général
+        print(f"[planning] calcul du prochain réveil impossible : {exc}")
+        return default
 
 
 def _cmd_daemon(config, args) -> int:
@@ -51,7 +72,7 @@ def _cmd_daemon(config, args) -> int:
             print(f"Config invalide (on garde l'ancienne, corrige config.toml) : {exc}")
         except Exception as exc:  # noqa: BLE001 — un daemon ne doit pas mourir
             print(f"Erreur de cycle (on continue) : {exc}")
-        for _ in range(config.interval_minutes * 60):
+        for _ in range(_daemon_wait(config)):
             if stop:
                 break
             time.sleep(1)
@@ -143,6 +164,20 @@ def _cmd_import(args) -> int:
     return 0
 
 
+def _cmd_ui(args) -> int:
+    from .ui import check, serve
+
+    path = Path(args.config)
+    if args.check:
+        if not path.exists():
+            print(f"Config introuvable : {path}")
+            return 1
+        ok, report = check(path)
+        print(report)
+        return 0 if ok else 1
+    return serve(path, host=args.host, port=args.port)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="lbc-alerte",
@@ -168,6 +203,7 @@ def main(argv: list[str] | None = None) -> int:
         ("export", "exporter la config sanitisée (+ prix/DB) en bundle portable"),
         ("import", "importer un bundle exporté dans le répertoire courant"),
         ("status", "compteurs new/seen/sent/old et dernières alertes envoyées"),
+        ("ui", "interface web locale pour gérer ses alertes (127.0.0.1)"),
     ]:
         p = sub.add_parser(name, help=help_, parents=[common])
         if name in ("once", "daemon"):
@@ -185,6 +221,11 @@ def main(argv: list[str] | None = None) -> int:
                            help="inclure listings.db (état des annonces déjà vues)")
             p.add_argument("--with-profile", action="store_true",
                            help="inclure le profil navigateur (déconseillé si l'IP change)")
+        if name == "ui":
+            p.add_argument("--port", type=int, default=8898, help="port local (défaut 8898)")
+            p.add_argument("--host", default="127.0.0.1", help=argparse.SUPPRESS)
+            p.add_argument("--check", action="store_true",
+                           help="relire et réécrire la config en mémoire, afficher le diff, ne rien écrire")
         if name == "import":
             p.add_argument("bundle", help="répertoire du bundle (contenant manifest.json)")
             p.add_argument("--force", action="store_true", help="écraser les fichiers existants")
@@ -202,6 +243,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_export(args)
     if args.command == "import":
         return _cmd_import(args)
+    if args.command == "ui":
+        return _cmd_ui(args)
 
     try:
         config = load_config(Path(args.config))

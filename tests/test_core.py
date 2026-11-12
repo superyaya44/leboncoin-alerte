@@ -195,6 +195,10 @@ def test_criteres_optionnels():
                     published_at=(datetime.now(UTC) - timedelta(hours=25)).isoformat())
     assert matches(vieux, Search(**base, max_age_hours=48))
     assert not matches(vieux, Search(**base, max_age_hours=2))
+    hier = (datetime.now(UTC) - timedelta(days=3)).date().isoformat()
+    demain = (datetime.now(UTC) + timedelta(days=1)).date().isoformat()
+    assert matches(vieux, Search(**base, published_after=hier))
+    assert not matches(vieux, Search(**base, published_after=demain))
     # Champ structuré absent de l'annonce (None) → critère ignoré (permissif)
     nu = Listing("3", "PC", 900, "https://x", body="RTX 4060 32 Go DDR5")
     assert matches(nu, Search(**base, computer_type="Fixe", seller_type="particulier",

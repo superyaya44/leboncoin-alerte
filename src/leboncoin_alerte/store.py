@@ -66,6 +66,10 @@ CREATE TABLE IF NOT EXISTS pending_offers (
     sent_at    TEXT,              -- NULL = en attente de validation humaine
     UNIQUE (listing_id, search)
 );
+CREATE TABLE IF NOT EXISTS search_runs (
+    search      TEXT PRIMARY KEY,
+    last_run_at TEXT NOT NULL      -- ISO UTC, dernier passage complet (planification)
+);
 """
 
 
@@ -378,6 +382,23 @@ class Store:
             "SELECT COUNT(*) FROM listings WHERE search = ?", (search_name,)
         )
         return int(cur.fetchone()[0])
+
+    # --- planification -----------------------------------------------------
+
+    def mark_run(self, search_name: str, at: datetime | None = None) -> None:
+        when = (at or datetime.now(UTC)).isoformat()
+        self.conn.execute(
+            "INSERT INTO search_runs (search, last_run_at) VALUES (?, ?) "
+            "ON CONFLICT(search) DO UPDATE SET last_run_at = excluded.last_run_at",
+            (search_name, when),
+        )
+        self.conn.commit()
+
+    def last_runs(self) -> dict[str, datetime]:
+        return {
+            name: datetime.fromisoformat(ts)
+            for name, ts in self.conn.execute("SELECT search, last_run_at FROM search_runs")
+        }
 
     def close(self) -> None:
         self.conn.close()

@@ -10,6 +10,8 @@ Flow par recherche :
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from .browser import BrowserSession, human_pause
 from .config import Config
 from .filters import (
@@ -21,11 +23,12 @@ from .filters import (
 )
 from .market import MarketConflictError, deal, occasion_refs, retail_refs
 from .notify.dispatcher import notify_all
+from .schedule import is_due
 from .search import MAX_DETAILS_PER_CYCLE, BlockedError, enrich_with_details, extract_listings
 from .store import Store
 
 
-def run_cycle(config: Config, headless: bool = True) -> int:
+def run_cycle(config: Config, headless: bool = True, force: bool = False) -> int:
     """Exécute un cycle complet. Retourne le nombre de nouvelles annonces notifiées."""
     store = Store(config.data_dir / "listings.db")
     # Références de prix : NEUF idealo uniquement (décision mainteneur 09/11 —
@@ -46,11 +49,24 @@ def run_cycle(config: Config, headless: bool = True) -> int:
             refs.setdefault(kind, {}).update(table)
         occ_keys = set(next(iter(occ.values())))
         print(f"[market] occasion J-7 : {', '.join(sorted(next(iter(occ.values()))))}")
+    # Planification par alerte : seules les recherches « dues » tournent ;
+    # aucune due → pas de navigateur du tout.
+    now = datetime.now(UTC)
+    last_runs = store.last_runs()
+    due = [s for s in config.searches
+           if force or is_due(s, now, last_runs.get(s.name), config.interval_minutes)]
+    if not due:
+        print("[planning] aucune alerte à lancer maintenant")
+        store.close()
+        return 0
+    if len(due) < len(config.searches):
+        print(f"[planning] {len(due)}/{len(config.searches)} alerte(s) à lancer : "
+              f"{', '.join(s.name for s in due)}")
     session = BrowserSession(config.data_dir / "profile", headless=headless, cdp_url=config.cdp_url)
     notified = 0
 
     with session.page() as page:
-        for search in config.searches:
+        for search in due:
             print(f"[{search.name}] recherche…")
             try:
                 listings = extract_listings(
@@ -155,6 +171,7 @@ def run_cycle(config: Config, headless: bool = True) -> int:
                 notified += 1
                 human_pause(1.0, 2.0)  # anti rate-limit Discord (~5 msgs / 2 s)
 
+            store.mark_run(search.name, now)
             human_pause(3.0, 7.0)  # espacer les recherches entre elles
 
     store.close()

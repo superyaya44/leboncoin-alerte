@@ -67,3 +67,21 @@ def test_discord_enabled_requires_url():
     }
     with pytest.raises(ConfigError, match="webhook_url"):
         parse_config(raw)
+
+
+def test_published_after_date():
+    import datetime as dt
+
+    import pytest
+
+    from leboncoin_alerte.config import ConfigError, parse_config
+
+    base = {"search": [{"name": "s", "url": "https://www.leboncoin.fr/recherche?text=x"}],
+            "notify": {"webhook": {"enabled": True, "url": "https://h"}}}
+    base["search"][0]["published_after"] = "2026-11-01"
+    assert parse_config(base).searches[0].published_after == "2026-11-01"
+    base["search"][0]["published_after"] = dt.date(2026, 11, 2)  # date TOML native
+    assert parse_config(base).searches[0].published_after == "2026-11-02"
+    base["search"][0]["published_after"] = "01/11/2026"
+    with pytest.raises(ConfigError):
+        parse_config(base)

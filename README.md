@@ -92,6 +92,28 @@ cp config.example.toml config.toml  # édite
 docker compose up -d                # image Playwright officielle, daemon en boucle
 ```
 
+## Interface web : gérer ses alertes sans éditer le TOML
+
+```bash
+lbc-alerte ui                # http://127.0.0.1:8898 (local uniquement)
+lbc-alerte ui --port 3100    # autre port
+lbc-alerte ui --check        # relit la config, la réécrit en mémoire, affiche le diff, n'écrit rien
+```
+
+Sur un serveur, on y accède par tunnel SSH : `ssh -L 8898:localhost:8898 serveur`.
+
+- Créer, dupliquer, supprimer des alertes ; prix, mots-clés, villes, ancienneté (durée ou
+  date fixe), vendeur, état, livraison ; critères matériel informatique en option.
+- **Fréquence par alerte** : à chaque passage, intervalle libre (minutes, heures, jours,
+  semaines), chaque jour / semaine / mois à heure fixe (voir `[search.schedule]` dans
+  `config.example.toml`). Le daemon se réveille pile au prochain créneau.
+- Les secrets (webhooks, tokens, mots de passe) ne sont jamais affichés : la page indique
+  seulement « Configuré ✓ » et permet de les remplacer ; ils vont dans `.env`.
+- Chaque enregistrement est validé par le vrai parseur, sauvegarde `config.toml.bak-<date>`,
+  puis écriture atomique. Une config invalide n'est jamais écrite. Le daemon relit la
+  config à chaque passage : pas de redémarrage.
+- Limite : la réécriture supprime les commentaires de `config.toml` (gardés dans le `.bak`).
+
 ## Modifier le webhook Discord
 
 L'URL du webhook vit dans **`.env`** (à la racine, jamais commité — règle : aucun secret
