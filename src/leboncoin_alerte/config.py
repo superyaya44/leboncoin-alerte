@@ -85,6 +85,10 @@ class Search:
     # MAX_PAGES (10) ; réduire (2-3) pour les recherches larges triées par
     # date : les nouveautés sont en page 1, inutile de tout rescanner.
     pages: int = 10
+    # Baisse de prix (%) : une annonce déjà notifiée qui baisse d'au moins ce
+    # pourcentage est renotifiée ; une annonce rejetée pour prix trop élevé qui
+    # repasse sous max_price est réanalysée. None = désactivé.
+    price_drop_percent: int | None = None
     # Planification propre à l'alerte ; None = à chaque passage du daemon.
     schedule: Schedule | None = None
 
@@ -150,6 +154,10 @@ class Config:
     # pour validation humaine (scripts/send_pending.py --send <id>).
     # Revenir à False rétablit l'envoi immédiat.
     hold_notifications: bool = False
+    # Adresse de l'interface `lbc-alerte ui` vue depuis ton navigateur (ex. via
+    # tunnel : http://localhost:3000). Si définie, les notifs Discord ont des
+    # liens « Pas intéressé » / « Écrire au vendeur ».
+    ui_url: str | None = None
     searches: list[Search] = field(default_factory=list)
     notify: NotifyConfig = field(default_factory=NotifyConfig)
 
@@ -191,6 +199,22 @@ def _iso_date(value: object, search_name: str) -> str | None:
         raise ConfigError(
             f"search '{search_name}' : published_after doit être une date AAAA-MM-JJ."
         ) from exc
+
+
+def _ui_url(value: object) -> str | None:
+    if not value:
+        return None
+    url = str(value).strip().rstrip("/")
+    _require(url.startswith(("http://", "https://")), "general.ui_url doit commencer par http(s)://.")
+    return url
+
+
+def _percent(value: object, search_name: str) -> int | None:
+    if value is None or value is False:
+        return None
+    pct = int(value)
+    _require(1 <= pct <= 90, f"search '{search_name}' : price_drop_percent entre 1 et 90.")
+    return pct
 
 
 def _schedule(raw: object, search_name: str) -> Schedule | None:
@@ -275,6 +299,7 @@ def parse_config(raw: dict) -> Config:
                 shippable_only=bool(s.get("shippable_only", False)),
                 pages=max(1, int(s.get("pages", 10))),
                 schedule=_schedule(s.get("schedule"), name),
+                price_drop_percent=_percent(s.get("price_drop_percent"), name),
             )
         )
     _require(bool(searches), "Aucune [[search]] définie : ajoute au moins une recherche.")
@@ -324,7 +349,8 @@ def parse_config(raw: dict) -> Config:
     return Config(
         interval_minutes=interval,
         data_dir=data_dir,
-        cdp_url=str(general.get("cdp_url")) or None,
+        cdp_url=str(general["cdp_url"]) if general.get("cdp_url") else None,
+        ui_url=_ui_url(general.get("ui_url")),
         hold_notifications=bool(general.get("hold_notifications", False)),
         searches=searches,
         notify=notify,
