@@ -13,6 +13,7 @@ Contraintes éprouvées en prod (retour d'expérience ill-backup-flow) :
 from __future__ import annotations
 
 import time
+from urllib.parse import quote
 
 import httpx
 
@@ -20,6 +21,7 @@ from ..config import DiscordConfig
 from ..filters import detected_cpu, detected_specs, detected_storage
 from ..market import MarketConflictError, deal
 from ..model import Listing
+from ..scam import assess, level
 
 USER_AGENT = "leboncoin-alerte/0.1"
 
@@ -30,6 +32,7 @@ def build_payload(
     refs: dict[str, dict[str, int]] | None = None,
     kinds: tuple[str, ...] | None = None,
     occasion_keys: set[str] | None = None,
+    ui_url: str | None = None,
 ) -> dict:
     """Construit l'embed Discord : config extraite du texte complet de l'annonce.
 
@@ -76,13 +79,35 @@ def build_payload(
         },
         {"name": "📍 Ville", "value": listing.city or "?", "inline": True},
         {"name": "🕒 Publiée", "value": listing.published_at or "?", "inline": True},
-        {"name": "⚙️ CPU", "value": cpu or "?", "inline": True},
-        {"name": "🎮 GPU", "value": gpu or "?", "inline": True},
-        {"name": "🧠 RAM", "value": f"{ram} Go" if ram else "?", "inline": True},
-        {"name": "💾 Stockage", "value": storage or "?", "inline": True},
     ]
+    # Champs matériel seulement s'il y a du matériel reconnu : une alerte
+    # « vélo » ou « canapé » n'affiche pas quatre « ? ».
+    if cpu or gpu or ram or storage:
+        fields += [
+            {"name": "⚙️ CPU", "value": cpu or "?", "inline": True},
+            {"name": "🎮 GPU", "value": gpu or "?", "inline": True},
+            {"name": "🧠 RAM", "value": f"{ram} Go" if ram else "?", "inline": True},
+            {"name": "💾 Stockage", "value": storage or "?", "inline": True},
+        ]
     if market_field:
         fields.append(market_field)
+    # Vigilance anti-arnaque (expérimental, informatif) : seulement si signaux.
+    score, reasons = assess(listing, market[2] if market else None)
+    vigilance = level(score)
+    if vigilance:
+        fields.append({
+            "name": f"⚠️ Vigilance {vigilance} (test)",
+            "value": " · ".join(reasons)[:1000],
+            "inline": False,
+        })
+    if ui_url:
+        base = f"{ui_url}/#{{}}/{quote(search_name, safe='')}/{quote(listing.listing_id, safe='')}"
+        fields.append({
+            "name": "Actions",
+            "value": f"[👎 Pas intéressé]({base.format('avis')}) · "
+                     f"[✉️ Écrire au vendeur]({base.format('vendeur')})",
+            "inline": False,
+        })
     embed = {
         "title": listing.title[:250],
         "url": listing.url,
@@ -102,8 +127,9 @@ def send(
     refs: dict[str, dict[str, int]] | None = None,
     kinds: tuple[str, ...] | None = None,
     occasion_keys: set[str] | None = None,
+    ui_url: str | None = None,
 ) -> bool:
-    payload = build_payload(search_name, listing, refs, kinds, occasion_keys)
+    payload = build_payload(search_name, listing, refs, kinds, occasion_keys, ui_url)
     for attempt in range(2):
         try:
             resp = httpx.post(

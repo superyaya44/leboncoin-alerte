@@ -31,7 +31,7 @@ def notify_all(
     kinds = (search.market_kind,) if search and search.market_kind else None
     if n.discord.enabled:
         results["discord"] = discord.send(
-            n.discord, search_name, listing, refs, kinds, occasion_keys)
+            n.discord, search_name, listing, refs, kinds, occasion_keys, config.ui_url)
     if n.email.enabled:
         results["email"] = email_smtp.send(n.email, search_name, listing)
     if n.telegram.enabled:
