@@ -14,6 +14,9 @@ data_dir = "./data"
 # (voir scripts/send_pending.py) au lieu d'être envoyées directement. Le rapport
 # quotidien les liste, tu valides avec --send <id>. false = envoi direct.
 # hold_notifications = false
+# Adresse de `lbc-alerte ui` vue depuis ton navigateur (ex. tunnel SSH) : ajoute aux
+# notifs Discord les liens « Pas intéressé » et « Écrire au vendeur ».
+# ui_url = "http://localhost:8898"
 
 # ─── Recherches ────────────────────────────────────────────────────────────────
 # Une recherche = une URL Leboncoin. Construis ta recherche sur le site avec tous
@@ -70,6 +73,9 @@ keywords_exclude = ["manette", "jeu"]
 # pages = 3                  # pages de résultats par cycle (défaut 10, 35 annonces/page ;
 #                            # 2-3 suffisent pour une recherche triée par date)
 
+# Baisse de prix : renotifie une annonce déjà envoyée qui baisse d'au moins X %,
+# réexamine une annonce écartée car trop chère qui repasse sous max_price.
+# price_drop_percent = 10
 # Planification propre à l'alerte (optionnel, sinon à chaque passage du daemon) :
 # [search.schedule]
 # every_minutes = 877              # toutes les 14 h 37

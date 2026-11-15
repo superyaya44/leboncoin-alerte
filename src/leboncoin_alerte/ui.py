@@ -18,6 +18,7 @@ import hashlib
 import json
 import os
 import re
+import sqlite3
 import tempfile
 import tomllib
 from datetime import datetime
@@ -27,7 +28,8 @@ from pathlib import Path
 
 import tomli_w
 
-from .config import ConfigError, parse_config
+from .config import Config, ConfigError, parse_config
+from .insights import price_stats, test_search
 
 # Champs secrets par canal → variable .env utilisée si on doit en créer une.
 SECRET_FIELDS: dict[str, tuple[str, str]] = {
@@ -144,7 +146,7 @@ def merge_submission(original: dict, submitted: dict, secret_updates: dict[str, 
     return raw, env_updates
 
 
-def validate(raw: dict, env: dict[str, str]) -> None:
+def validate(raw: dict, env: dict[str, str]) -> Config:
     """Valide avec le vrai parseur, en résolvant ${VAR} avec l'env fourni."""
 
     def expand(node: object) -> object:
@@ -160,7 +162,7 @@ def validate(raw: dict, env: dict[str, str]) -> None:
     expanded = expand(raw)
     assert isinstance(expanded, dict)
     try:
-        parse_config(expanded)
+        return parse_config(expanded)
     except ConfigError:
         raise
     except (ValueError, TypeError, AttributeError) as exc:
@@ -214,6 +216,44 @@ class ConfigStore:
         validate(raw, env)
         tomli_w.dumps(raw)  # lève si une valeur n'est pas sérialisable
         return raw, env_updates, env
+
+    def db_path(self, raw: dict | None = None) -> Path:
+        raw = raw if raw is not None else self.load_raw()
+        data_dir = Path(str(raw.get("general", {}).get("data_dir", "./data")))
+        if not data_dir.is_absolute():
+            data_dir = self.path.parent / data_dir
+        return data_dir / "listings.db"
+
+    def test(self, payload: dict) -> dict:
+        raw, _, env = self.prepare(payload)
+        config = validate(raw, env)
+        try:
+            index = int(payload.get("index", 0))
+            search = config.searches[index]
+        except (ValueError, IndexError) as exc:
+            raise ConfigError("alerte introuvable.") from exc
+        return test_search(self.db_path(raw), search)
+
+    def listing(self, search_name: str, listing_id: str) -> dict | None:
+        db = self.db_path()
+        if not db.exists():
+            return None
+        conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        try:
+            row = conn.execute(
+                "SELECT title, price, url, search_text, seller_question FROM listings "
+                "WHERE search = ? AND listing_id = ?", (search_name, listing_id)).fetchone()
+        finally:
+            conn.close()
+        if row is None:
+            return None
+        return {"id": listing_id, "search": search_name, "title": row[0], "price": row[1],
+                "url": row[2], "text": (row[3] or "")[:600], "question": row[4]}
+
+    def prices(self, name: str) -> dict:
+        raw = self.load_raw()
+        kind = next((s.get("market_kind") for s in raw.get("search", []) if s.get("name") == name), None)
+        return price_stats(self.db_path(raw), name, kind)
 
     def preview(self, payload: dict) -> str:
         raw, _, _ = self.prepare(payload)
@@ -313,6 +353,22 @@ def make_handler(store: ConfigStore):
                     return self._json(200, store.get())
                 except (OSError, tomllib.TOMLDecodeError) as exc:
                     return self._json(500, {"error": f"Lecture impossible : {exc}"})
+            if route == "/api/listing":
+                from urllib.parse import parse_qs, urlsplit
+
+                q = parse_qs(urlsplit(self.path).query)
+                info = store.listing(q.get("search", [""])[0], q.get("id", [""])[0])
+                if info is None:
+                    return self._json(404, {"error": "Annonce introuvable dans la base."})
+                return self._json(200, info)
+            if route == "/api/prices":
+                from urllib.parse import parse_qs, urlsplit
+
+                name = parse_qs(urlsplit(self.path).query).get("search", [""])[0]
+                try:
+                    return self._json(200, store.prices(name))
+                except (OSError, sqlite3.Error) as exc:
+                    return self._json(500, {"error": f"Lecture des prix impossible : {exc}"})
             if route == "/favicon.ico":
                 return self._send(204, b"", "text/plain")
             return self._send(404, b"Not found", "text/plain")
@@ -334,6 +390,8 @@ def make_handler(store: ConfigStore):
             try:
                 if route == "/api/preview":
                     return self._json(200, {"toml": store.preview(payload)})
+                if route == "/api/test":
+                    return self._json(200, store.test(payload))
                 if route == "/api/save":
                     return self._json(200, store.save(payload))
             except ConflictError as exc:

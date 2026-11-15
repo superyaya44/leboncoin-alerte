@@ -76,6 +76,33 @@ details.adv[open]>summary::before{transform:rotate(90deg)}
 details.adv .inner{padding-top:16px}
 .cal{display:grid;grid-template-columns:repeat(7,minmax(0,52px));gap:6px;margin-top:14px}.cal .pill{padding:6px 0;text-align:center}
 .sched-list{display:grid;gap:8px}
+.chart{margin-top:18px;border-top:1px solid var(--line);padding-top:16px}
+.chart-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.pill.small{padding:3px 10px;font-size:12.5px}
+.pchart-wrap{position:relative;margin-top:8px}
+.pchart{width:100%;height:auto;display:block;overflow:visible}
+.pchart .grid{stroke:var(--line);stroke-width:1}
+.pchart .ax{fill:var(--ink3);font-size:11px}
+.pchart .cross{stroke:var(--ink3);stroke-width:1;stroke-dasharray:2 3}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--ink2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw-line{display:inline-block;width:16px;height:2px;border-radius:2px}
+.sw-band{display:inline-block;width:14px;height:10px;opacity:.3;border-radius:2px}
+.sw-dash{display:inline-block;width:16px;height:0;border-top:2px dashed}
+.tip{position:absolute;top:28px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line2);border-radius:8px;padding:8px 10px;font-size:12.5px;pointer-events:none;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.4)}
+.tip .muted{color:var(--ink3)}
+.test-big{font-size:15px;margin:14px 0 8px}
+.test-big b{font-size:22px;color:var(--acc)}
+.examples{margin:0 0 10px;padding-left:18px;font-size:13.5px}
+.examples a{color:var(--ink)}
+.examples span{color:var(--ink3)}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;padding:10vh 16px;z-index:50}
+.modal{max-width:560px;width:100%;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.modal h2{margin:0 0 10px}
+.modal .close{position:absolute;top:10px;right:10px;font-size:20px}
+.modal-head{margin-bottom:10px;font-size:14px}
+.modal-head a{color:var(--ink)}
+.modal-head span{color:var(--ink3)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
 .footer-actions{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap}
 .secret{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -262,7 +289,9 @@ function viewSearch() {
         h('p', { class: 'help', text: 'Recherche dans toute la France. Pour une ville précise, passe plutôt par le site.' }))),
     card('Fréquence de cette alerte', 'À quel moment le bot vérifie cette recherche.', scheduleField(s)),
     card('Prix', null,
-      h('div', { class: 'price' }, h('span', { text: 'Entre' }), number(s, 'min_price', { placeholder: 'min' }), h('span', { text: 'et' }), number(s, 'max_price', { placeholder: 'max' }), h('span', { text: '€' }))),
+      h('div', { class: 'price' }, h('span', { text: 'Entre' }), number(s, 'min_price', { placeholder: 'min' }), h('span', { text: 'et' }), number(s, 'max_price', { placeholder: 'max' }), h('span', { text: '€' })),
+      dropField(s),
+      priceChart(s)),
     card('Mots-clés', 'Appliqués au titre de l’annonce.',
       field('Le titre doit contenir au moins un de ces mots', tags(s, 'keywords_include', { placeholder: 'ex. vélo, trek…' }), 'Laisse vide pour tout garder.'),
       field('Ignorer les annonces dont le titre contient', tags(s, 'keywords_exclude', { placeholder: 'ex. cassé…', suggestions: ['recherche', 'je cherche', 'échange', 'hs', 'pour pièces', 'cassé'] }))),
@@ -274,6 +303,7 @@ function viewSearch() {
       h('div', { class: 'field' }, toggle(s, 'shippable_only', 'Uniquement les annonces avec livraison possible')),
       viewMore(s)),
     viewTech(s),
+    testCard(s, list.indexOf(s)),
     h('div', { class: 'footer-actions' },
       h('button', { class: 'btn', type: 'button', text: 'Dupliquer cette alerte', onclick: () => { const c = structuredClone(s); c.name = `${s.name}-copie`; list.splice(S.sel + 1, 0, c); S.sel++; touch(); render(); } }),
       h('button', { class: 'btn danger', type: 'button', text: 'Supprimer', onclick: () => { if (!confirm(`Supprimer l’alerte « ${s.name} » ?`)) return; list.splice(S.sel, 1); S.sel = Math.max(0, S.sel - 1); touch(); render(); } })));
@@ -391,6 +421,127 @@ function ageField(s) {
   return wrap;
 }
 
+// ── baisse de prix ───────────────────────────────────────────────
+function dropField(s) {
+  const pct = h('input', { type: 'number', min: 1, max: 90, inputmode: 'numeric', value: s.price_drop_percent ?? 10, style: 'max-width:80px', 'aria-label': 'pourcentage de baisse' });
+  const row = h('div', { class: 'price', hidden: s.price_drop_percent == null || null, style: 'margin-top:8px' }, h('span', { text: 'à partir de' }), pct, h('span', { text: '% de baisse' }));
+  pct.addEventListener('input', () => setKey(s, 'price_drop_percent', Math.min(90, Math.max(1, num(pct.value) || 10))));
+  const sw = h('input', { type: 'checkbox', checked: s.price_drop_percent != null || null, onchange: (e) => { setKey(s, 'price_drop_percent', e.target.checked ? (num(pct.value) || 10) : null); row.hidden = !e.target.checked; } });
+  return h('div', { style: 'margin-top:18px' },
+    h('label', { class: 'switch' }, sw, h('span', { text: 'Me prévenir si le prix d’une annonce baisse' })), row,
+    h('p', { class: 'help', text: 'Une annonce déjà reçue qui baisse est renvoyée (📉 -15 % · 600 → 510 €). Une annonce écartée car trop chère est réexaminée si elle repasse sous ton prix max.' }));
+}
+
+// ── courbe des prix (SVG, sans bibliothèque) ─────────────────────
+const C_MED = '#e06a22', C_REF = '#4a86dd';
+const PRICE_CACHE = {};
+function priceChart(s) {
+  const box = h('div', { class: 'chart' });
+  if (!s.name) return box;
+  const draw = (d, model) => {
+    box.textContent = '';
+    if (!d.n) { box.append(h('p', { class: 'help', text: 'Pas encore de prix observés pour cette alerte : la courbe apparaîtra après quelques passages (les modifications non enregistrées n’y changent rien).' })); return; }
+    const m = model ? d.models.find((x) => x.name === model) : null;
+    const weeks = m ? m.weeks : d.weeks;
+    box.append(h('div', { class: 'chart-head' },
+      h('span', { class: 'lbl', style: 'margin:0', text: 'Prix observés' }),
+      h('span', { class: 'help', style: 'margin:0', text: m ? `${m.name} · médiane ${m.median} € sur ${m.n} annonces` : `médiane ${d.median} € sur ${d.n} annonces (4 derniers mois)` })));
+    if (d.models.length) {
+      const chips = h('div', { class: 'pills', style: 'margin:8px 0 4px' });
+      for (const [val, lab] of [[null, 'Toutes'], ...d.models.map((x) => [x.name, `${x.name} · ${x.median} €`])])
+        chips.append(h('button', { type: 'button', class: 'pill small', 'aria-pressed': String((model || null) === val), text: lab, onclick: () => draw(d, val) }));
+      box.append(chips);
+    }
+    box.append(svgChart(weeks, m ? m.retail : []));
+  };
+  const load = async () => {
+    try { PRICE_CACHE[s.name] ||= await api(`/api/prices?search=${encodeURIComponent(s.name)}`); draw(PRICE_CACHE[s.name], null); }
+    catch (e) { box.textContent = ''; box.append(h('p', { class: 'help', text: `Courbe indisponible : ${e.message}` })); }
+  };
+  load();
+  return box;
+}
+function svgChart(weeks, retail) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const sv = (tag, attrs = {}) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+  const W = 640, H = 220, L = 52, R = 14, T = 12, B = 30;
+  const t = (iso) => new Date(iso + 'T00:00:00').getTime();
+  const xs = weeks.map((w) => t(w.week));
+  const x0 = Math.min(...xs), x1 = Math.max(...xs) + 7 * 864e5;
+  const refPts = retail.filter((r) => t(r.date) >= x0 - 7 * 864e5 && t(r.date) <= x1 + 7 * 864e5);
+  const vals = [...weeks.flatMap((w) => [w.p25 ?? w.median, w.p75 ?? w.median]), ...refPts.map((r) => r.price)];
+  let lo = Math.min(...vals), hi = Math.max(...vals); const pad = (hi - lo) * 0.12 || hi * 0.1 || 10; lo = Math.max(0, lo - pad); hi += pad;
+  const step = Math.pow(10, Math.floor(Math.log10((hi - lo) / 4 || 1))); const tick = [1, 2, 2.5, 5, 10].map((k) => k * step).find((k) => (hi - lo) / k <= 5) || step * 10;
+  lo = Math.floor(lo / tick) * tick; hi = Math.ceil(hi / tick) * tick;
+  const X = (ms) => L + (W - L - R) * (x1 === x0 ? 0.5 : (ms - x0) / (x1 - x0));
+  const mid = (w) => t(w.week) + 3.5 * 864e5;
+  const Y = (v) => T + (H - T - B) * (1 - (v - lo) / (hi - lo));
+  const svg = sv('svg', { viewBox: `0 0 ${W} ${H}`, class: 'pchart', role: 'img', 'aria-label': 'Évolution du prix médian par semaine' });
+  for (let v = lo; v <= hi + 1e-9; v += tick) {
+    svg.append(sv('line', { x1: L, x2: W - R, y1: Y(v), y2: Y(v), class: 'grid' }));
+    const tx = sv('text', { x: L - 8, y: Y(v) + 4, 'text-anchor': 'end', class: 'ax' }); tx.textContent = `${Math.round(v)} €`; svg.append(tx);
+  }
+  const every = Math.ceil(weeks.length / 6);
+  weeks.forEach((w, i) => { if (i % every) return; const tx = sv('text', { x: X(mid(w)), y: H - 8, 'text-anchor': 'middle', class: 'ax' }); tx.textContent = new Date(w.week).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }); svg.append(tx); });
+  if (weeks.length > 1) {
+    const top = weeks.map((w) => `${X(mid(w))},${Y(w.p75)}`), bot = weeks.slice().reverse().map((w) => `${X(mid(w))},${Y(w.p25)}`);
+    svg.append(sv('polygon', { points: [...top, ...bot].join(' '), fill: C_MED, 'fill-opacity': '0.16' }));
+    svg.append(sv('polyline', { points: weeks.map((w) => `${X(mid(w))},${Y(w.median)}`).join(' '), fill: 'none', stroke: C_MED, 'stroke-width': 2, 'stroke-linejoin': 'round' }));
+  } else {
+    const w = weeks[0]; svg.append(sv('line', { x1: X(mid(w)), x2: X(mid(w)), y1: Y(w.p25), y2: Y(w.p75), stroke: C_MED, 'stroke-opacity': '0.4', 'stroke-width': 8, 'stroke-linecap': 'round' }));
+  }
+  if (refPts.length) {
+    const pts = refPts.map((r) => `${X(Math.min(Math.max(t(r.date), x0), x1))},${Y(r.price)}`);
+    if (pts.length === 1) pts.push(`${W - R},${Y(refPts[0].price)}`), pts.unshift(`${L},${Y(refPts[0].price)}`);
+    svg.append(sv('polyline', { points: pts.join(' '), fill: 'none', stroke: C_REF, 'stroke-width': 2, 'stroke-dasharray': '6 4' }));
+  }
+  weeks.forEach((w) => svg.append(sv('circle', { cx: X(mid(w)), cy: Y(w.median), r: 4, fill: C_MED, stroke: 'var(--panel)', 'stroke-width': 2 })));
+  // survol : crosshair + infobulle
+  const cross = sv('line', { y1: T, y2: H - B, class: 'cross', visibility: 'hidden' }); svg.append(cross);
+  const wrap = h('div', { class: 'pchart-wrap' });
+  const tip = h('div', { class: 'tip', hidden: true });
+  const lastRef = refPts.length ? refPts[refPts.length - 1].price : null;
+  weeks.forEach((w, i) => {
+    const xa = i ? (X(mid(weeks[i - 1])) + X(mid(w))) / 2 : L, xb = i < weeks.length - 1 ? (X(mid(w)) + X(mid(weeks[i + 1]))) / 2 : W - R;
+    const hit = sv('rect', { x: xa, y: T, width: Math.max(1, xb - xa), height: H - T - B, fill: 'transparent' });
+    hit.addEventListener('pointerenter', () => {
+      cross.setAttribute('x1', X(mid(w))); cross.setAttribute('x2', X(mid(w))); cross.setAttribute('visibility', 'visible');
+      tip.hidden = false; tip.textContent = '';
+      tip.append(h('b', { text: `Semaine du ${new Date(w.week).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` }),
+        h('div', { text: `Médiane : ${w.median} €` }), h('div', { text: `Moitié des annonces entre ${w.p25} et ${w.p75} €` }),
+        h('div', { class: 'muted', text: `${w.n} annonce${w.n > 1 ? 's' : ''}` }), lastRef ? h('div', { text: `Neuf (idealo) : ${lastRef} €` }) : null);
+      const px = (X(mid(w)) / W) * 100; tip.style.left = `${Math.min(Math.max(px, 18), 82)}%`;
+    });
+    hit.addEventListener('pointerleave', () => { tip.hidden = true; cross.setAttribute('visibility', 'hidden'); });
+    svg.append(hit);
+  });
+  const legend = h('div', { class: 'legend' },
+    h('span', {}, h('i', { class: 'sw-line', style: `background:${C_MED}` }), 'Prix médian'),
+    h('span', {}, h('i', { class: 'sw-band', style: `background:${C_MED}` }), 'Moitié centrale des annonces'),
+    refPts.length ? h('span', {}, h('i', { class: 'sw-dash', style: `border-color:${C_REF}` }), 'Prix neuf (idealo)') : null);
+  wrap.append(legend, svg, tip);
+  return wrap;
+}
+
+// ── tester l'alerte ──────────────────────────────────────────────
+function testCard(s, index) {
+  const out = h('div');
+  const btn = h('button', { type: 'button', class: 'btn', text: 'Tester cette alerte', onclick: async () => {
+    btn.disabled = true; btn.textContent = 'Test en cours…'; out.textContent = '';
+    try {
+      const r = await api('/api/test', { ...payload(), index });
+      const src = r.source === 'all' ? 'vues par toutes tes alertes' : 'vues pour cette alerte';
+      if (r.source === 'none' || !r.total) { out.append(h('p', { class: 'help', text: 'Aucune annonce en mémoire pour le moment : le test sera possible après quelques passages du bot.' })); return; }
+      out.append(h('p', { class: 'test-big' }, h('b', { text: String(r.matched) }), ` annonce${r.matched > 1 ? 's' : ''} sur ${r.total} ${src} ces ${r.days} derniers jours ${r.matched > 1 ? 'auraient été envoyées' : 'aurait été envoyée'}.`));
+      if (r.examples.length) out.append(h('ul', { class: 'examples' }, ...r.examples.map((e) => h('li', {}, h('a', { href: e.url, target: '_blank', rel: 'noopener noreferrer', text: e.title }), h('span', { text: e.price != null ? ` · ${e.price} €` : '' })))));
+      if (r.reasons.length) out.append(h('p', { class: 'help', text: 'Principales raisons d’exclusion : ' + r.reasons.map((x) => `${x.label} (${x.count})`).join(', ') + '.' }));
+      out.append(h('p', { class: 'help', text: `Simulation sur les annonces déjà en mémoire, sans contacter Leboncoin. Non simulés : ${r.not_simulated.join(', ')}.` }));
+    } catch (e) { out.append(h('p', { class: 'help', style: 'color:var(--bad)', text: `Test impossible : ${e.message}` })); }
+    finally { btn.disabled = false; btn.textContent = 'Relancer le test'; }
+  } });
+  return card('Tester cette alerte', 'Vois ce que l’alerte aurait trouvé avec les réglages affichés, même non enregistrés.', btn, out);
+}
+
 const TECH_KEYS = ['min_ram_gb', 'min_vram_gb', 'vram_ask', 'min_stick_gb', 'min_disk_gb', 'computer_type', 'min_year', 'market_kind'];
 const MORE_KEYS = ['text_keywords_include', 'text_keywords_exclude', 'cities_exclude', 'pages', 'regex_all', 'regex_any'];
 
@@ -463,7 +614,8 @@ function viewSettings() {
   const g = general();
   return h('div', {},
     card('Notifications', 'Où recevoir les nouvelles annonces. Active au moins un canal.',
-      channel('discord', 'Discord', () => [secretField('discord', 'Lien du webhook')]),
+      channel('discord', 'Discord', () => [secretField('discord', 'Lien du webhook'),
+        field('Adresse de cette interface, pour les liens dans Discord', text(general(), 'ui_url', { placeholder: 'http://localhost:3000' }), 'Si elle est renseignée, chaque notification a deux liens : « Pas intéressé » et « Écrire au vendeur ». Ils fonctionnent quand ton tunnel est ouvert.')]),
       channel('telegram', 'Telegram', (sec) => [secretField('telegram', 'Jeton du bot'), field('Identifiant de la conversation', text(sec, 'chat_id'))]),
       channel('email', 'E-mail', (sec) => [
         h('div', { class: 'grid2' }, field('Serveur SMTP', text(sec, 'smtp_host', { placeholder: 'smtp.gmail.com' })), field('Port', number(sec, 'smtp_port', { placeholder: '587' })),
@@ -526,11 +678,63 @@ async function save() {
     showMsg('okm', 'Enregistré. Le changement sera pris en compte au prochain passage, sans redémarrage.');
     renderStatus('ok', 'Enregistré ✓');
     if (S.view === 'settings') render();
+    return true;
   } catch (e) {
     showMsg('err', `Rien n’a été enregistré : ${e.message}`);
     renderStatus();
+    return false;
   } finally { S.saving = false; $('saveBtn').disabled = !S.dirty; }
 }
+// ── actions depuis Discord : #avis/<alerte>/<id>, #vendeur/<alerte>/<id> ──
+const STOP = new Set(['les', 'des', 'une', 'pour', 'avec', 'sans', 'dans', 'sur', 'très', 'tres', 'bon', 'état', 'etat', 'vend', 'vends', 'vente', 'and', 'the']);
+function modal(build) {
+  const close = () => { ov.remove(); history.replaceState(null, '', location.pathname); };
+  const ov = h('div', { class: 'overlay', onclick: (e) => { if (e.target === ov) close(); } },
+    h('div', { class: 'modal card', role: 'dialog', 'aria-modal': 'true' }, h('button', { type: 'button', class: 'btn small ghost close', 'aria-label': 'Fermer', text: "×", onclick: () => close() }), ...build(close)));
+  document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); } });
+  document.body.append(ov);
+}
+async function openFromHash() {
+  const m = location.hash.match(/^#(avis|vendeur)\/([^/]+)\/([^/]+)$/);
+  if (!m) return;
+  const [, kind, search, id] = m.map(decodeURIComponent);
+  let info;
+  try { info = await api(`/api/listing?search=${encodeURIComponent(search)}&id=${encodeURIComponent(id)}`); }
+  catch (e) { showMsg('err', `Annonce introuvable : ${e.message}`); return; }
+  const head = h('div', { class: 'modal-head' }, h('a', { href: info.url, target: '_blank', rel: 'noopener noreferrer', text: info.title }), h('span', { text: info.price != null ? ` · ${info.price} €` : '' }));
+  if (kind === 'vendeur') {
+    const msg = info.question || `Bonjour, votre annonce « ${info.title} »${info.price != null ? ` à ${info.price} €` : ''} est-elle toujours disponible ? Je suis intéressé. Serait-il possible de la voir en main propre avant l’achat ? Merci !`;
+    const ta = h('textarea', { rows: 5 }, msg);
+    return modal((close) => [h('h2', { text: 'Écrire au vendeur' }), head,
+      h('p', { class: 'help', text: 'Message prêt à copier : Leboncoin demande d’envoyer les messages depuis son site.' }), ta,
+      h('div', { class: 'row', style: 'margin-top:12px;justify-content:flex-end' },
+        h('a', { class: 'btn', href: info.url, target: '_blank', rel: 'noopener noreferrer', text: 'Ouvrir l’annonce ↗', style: 'flex:0 0 auto;display:inline-flex;align-items:center;text-decoration:none;min-width:0' }),
+        h('button', { type: 'button', class: 'btn primary', style: 'flex:0 0 auto;min-width:0', text: 'Copier le message', onclick: async (e) => { try { await navigator.clipboard.writeText(ta.value); } catch { ta.select(); document.execCommand('copy'); } e.target.textContent = 'Copié ✓'; } }))]);
+  }
+  const alert = searches().find((x) => x.name === search);
+  if (!alert) { showMsg('err', `L’alerte « ${search} » n’existe plus.`); return; }
+  const excl = new Set(alert.keywords_exclude || []);
+  const words = [...new Set((info.title || '').toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 3 && !STOP.has(w) && !excl.has(w)))];
+  const picked = new Set();
+  let lowerMax = false;
+  const chips = h('div', { class: 'pills' }, ...words.map((w) => { const b = h('button', { type: 'button', class: 'pill', 'aria-pressed': 'false', text: w, onclick: () => { picked.has(w) ? picked.delete(w) : picked.add(w); b.setAttribute('aria-pressed', String(picked.has(w))); } }); return b; }));
+  const newMax = info.price != null ? Math.max(1, info.price - 1) : null;
+  return modal((close) => [h('h2', { text: 'Pas intéressé : affiner l’alerte' }), head,
+    h('p', { class: 'help', text: `Alerte « ${search} ». Choisis ce qui ne te plaît pas pour ne plus recevoir ce genre d’annonce.` }),
+    words.length ? field('Ignorer à l’avenir les titres contenant', chips) : null,
+    newMax != null && (alert.max_price == null || alert.max_price > newMax) ? h('div', { class: 'field' }, h('label', { class: 'switch' }, h('input', { type: 'checkbox', onchange: (e) => { lowerMax = e.target.checked; } }), h('span', { text: `Trop cher : baisser mon prix max à ${newMax} €` }))) : null,
+    h('div', { class: 'row', style: 'margin-top:12px;justify-content:flex-end' },
+      h('button', { type: 'button', class: 'btn', style: 'flex:0 0 auto;min-width:0', text: 'Ne rien changer', onclick: close }),
+      h('button', { type: 'button', class: 'btn primary', style: 'flex:0 0 auto;min-width:0', text: 'Appliquer et enregistrer', onclick: async () => {
+        if (!picked.size && !lowerMax) return close();
+        if (picked.size) alert.keywords_exclude = [...excl, ...picked];
+        if (lowerMax) alert.max_price = newMax;
+        touch(); S.view = 'search'; S.sel = searches().indexOf(alert); render();
+        if (await save()) close();
+      } }))]);
+}
+window.addEventListener('hashchange', openFromHash);
+
 $('saveBtn').addEventListener('click', save);
 $('addBtn').addEventListener('click', addSearch);
 $('settingsBtn').addEventListener('click', () => { S.view = 'settings'; render(); });
@@ -543,7 +747,7 @@ document.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.
     S.cfg = d.config;
     for (const s of S.cfg.search || []) if (s.seller_type === 'private') s.seller_type = 'particulier';
     S.secrets = d.secrets; S.version = d.version;
-    render(); renderStatus(); preview();
+    render(); renderStatus(); preview(); openFromHash();
   } catch (e) { showMsg('err', `Impossible de lire la configuration : ${e.message}`); renderStatus('', 'Erreur'); }
 })();
 </script>

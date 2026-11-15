@@ -66,6 +66,13 @@ CREATE TABLE IF NOT EXISTS pending_offers (
     sent_at    TEXT,              -- NULL = en attente de validation humaine
     UNIQUE (listing_id, search)
 );
+CREATE TABLE IF NOT EXISTS listing_prices (
+    listing_id TEXT NOT NULL,
+    search     TEXT NOT NULL,
+    price      INTEGER NOT NULL,
+    seen_at    TEXT NOT NULL      -- ISO UTC : changement de prix observé
+);
+CREATE INDEX IF NOT EXISTS idx_listing_prices ON listing_prices (search, listing_id);
 CREATE TABLE IF NOT EXISTS search_runs (
     search      TEXT PRIMARY KEY,
     last_run_at TEXT NOT NULL      -- ISO UTC, dernier passage complet (planification)
@@ -382,6 +389,44 @@ class Store:
             "SELECT COUNT(*) FROM listings WHERE search = ?", (search_name,)
         )
         return int(cur.fetchone()[0])
+
+    # --- prix ----------------------------------------------------------------
+
+    def known_prices(self, search_name: str) -> dict[str, tuple[int | None, str, str | None]]:
+        """listing_id → (dernier prix connu, status, reject_reason)."""
+        return {
+            row[0]: (row[1], row[2], row[3])
+            for row in self.conn.execute(
+                "SELECT listing_id, price, status, reject_reason FROM listings WHERE search = ?",
+                (search_name,),
+            )
+        }
+
+    def update_price(self, search_name: str, listing_id: str, old: int | None, new: int) -> None:
+        """Nouveau prix observé : met à jour l'annonce et garde l'historique."""
+        now = datetime.now(UTC).isoformat()
+        has_history = self.conn.execute(
+            "SELECT 1 FROM listing_prices WHERE search = ? AND listing_id = ? LIMIT 1",
+            (search_name, listing_id),
+        ).fetchone()
+        if not has_history and old is not None:
+            first = self.conn.execute(
+                "SELECT first_seen FROM listings WHERE search = ? AND listing_id = ?",
+                (search_name, listing_id),
+            ).fetchone()
+            self.conn.execute(
+                "INSERT INTO listing_prices (listing_id, search, price, seen_at) VALUES (?,?,?,?)",
+                (listing_id, search_name, old, first[0] if first else now),
+            )
+        self.conn.execute(
+            "INSERT INTO listing_prices (listing_id, search, price, seen_at) VALUES (?,?,?,?)",
+            (listing_id, search_name, new, now),
+        )
+        self.conn.execute(
+            "UPDATE listings SET price = ? WHERE search = ? AND listing_id = ?",
+            (new, search_name, listing_id),
+        )
+        self.conn.commit()
 
     # --- planification -----------------------------------------------------
 

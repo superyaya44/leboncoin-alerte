@@ -140,3 +140,16 @@ def test_http_save_error_is_readable(server):
     status, body = _req(server, "POST", "/api/preview", {"config": {"general": {}}},
                         headers={"Content-Type": "application/json", "X-LBC-UI": "1"})
     assert status == 422 and "recherche" in json.loads(body)["error"]
+
+
+def test_http_listing_lookup(server, store):
+    from leboncoin_alerte.model import Listing
+    from leboncoin_alerte.store import Store
+
+    db = Store(store.db_path())
+    db.mark_seen("gpu", [Listing("42", "RTX 3060", 200, "https://x/42")])
+    db.close()
+    status, body = _req(server, "GET", "/api/listing?search=gpu&id=42")
+    assert status == 200 and json.loads(body)["title"] == "RTX 3060"
+    status, _ = _req(server, "GET", "/api/listing?search=gpu&id=nope")
+    assert status == 404

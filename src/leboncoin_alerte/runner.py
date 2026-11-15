@@ -10,6 +10,7 @@ Flow par recherche :
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from .browser import BrowserSession, human_pause
@@ -22,10 +23,57 @@ from .filters import (
     wanted_ad_weak,
 )
 from .market import MarketConflictError, deal, occasion_refs, retail_refs
+from .model import Listing
 from .notify.dispatcher import notify_all
 from .schedule import is_due
 from .search import MAX_DETAILS_PER_CYCLE, BlockedError, enrich_with_details, extract_listings
 from .store import Store
+
+
+def _price_changes(store: Store, search, listings: list[Listing]) -> list[tuple[Listing, int]]:
+    """Compare les prix aux prix connus. Retourne les baisses à renotifier.
+
+    - toujours : historique des prix (alimente la courbe de l'interface) ;
+    - si price_drop_percent : annonce déjà envoyée qui baisse d'au moins ce % →
+      renotifiée ; annonce rejetée UNIQUEMENT pour prix trop élevé qui repasse
+      sous max_price → oubliée, donc réanalysée en entier ce cycle (filtres
+      complets : pas d'envoi « à peu près sûr »).
+    """
+    known = store.known_prices(search.name)
+    drops: list[tuple[Listing, int]] = []
+    for lst in listings:
+        k = known.get(lst.listing_id)
+        if not k or lst.price is None or k[0] is None or lst.price == k[0]:
+            continue
+        old, status, reason = k
+        store.update_price(search.name, lst.listing_id, old, lst.price)
+        if search.price_drop_percent is None or lst.price > old:
+            continue
+        pct = round((old - lst.price) * 100 / old) if old else 0
+        if status == "sent" and pct >= search.price_drop_percent:
+            drops.append((lst, old))
+        elif (status == "seen" and reason == "max_price" and search.max_price is not None
+              and lst.price <= search.max_price):
+            store.unmark(search.name, lst)
+            print(f"[{search.name}] repasse sous le prix max ({old} → {lst.price} €), "
+                  f"réanalysée : {lst.title}")
+    return drops
+
+
+def _notify_drop(config: Config, store: Store, search, listing: Listing, old: int,
+                 refs, occ_keys) -> int:
+    pct = round((old - listing.price) * 100 / old)
+    titled = replace(listing, title=f"📉 -{pct} % ({old} → {listing.price} €) · {listing.title}")
+    if config.hold_notifications:
+        store.add_pending(search.name, titled, context=f"baisse {old}→{listing.price}")
+        print(f"  → baisse de prix en attente de validation : {listing.title}")
+        return 0
+    results = notify_all(config, search.name, titled, refs, occ_keys)
+    ok = [c for c, success in results.items() if success]
+    print(f"  → baisse de prix {old} → {listing.price} € "
+          f"({', '.join(ok) or 'ÉCHEC ENVOI'}) : {listing.title}")
+    human_pause(1.0, 2.0)
+    return 1 if ok else 0
 
 
 def run_cycle(config: Config, headless: bool = True, force: bool = False) -> int:
@@ -85,6 +133,7 @@ def run_cycle(config: Config, headless: bool = True, force: bool = False) -> int
             # Dédupliqution AVANT tout : on ne charge le détail que des nouvelles.
             # On ne marque "vues" QUE celles analysées ce cycle (plafond) —
             # les autres restent nouvelles et seront analysées au prochain cycle.
+            drops = _price_changes(store, search, listings)
             fresh_all = store.unseen_listings(search.name, listings)
             fresh = fresh_all[:MAX_DETAILS_PER_CYCLE]
             print(f"[{search.name}] {len(fresh_all)} nouvelles annonces, {len(fresh)} analysées ce cycle")
@@ -171,6 +220,8 @@ def run_cycle(config: Config, headless: bool = True, force: bool = False) -> int
                 notified += 1
                 human_pause(1.0, 2.0)  # anti rate-limit Discord (~5 msgs / 2 s)
 
+            for listing, old_price in drops:
+                notified += _notify_drop(config, store, search, listing, old_price, refs, occ_keys)
             store.mark_run(search.name, now)
             human_pause(3.0, 7.0)  # espacer les recherches entre elles
 
